@@ -1,0 +1,1977 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="web/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="web/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="web/apple-touch-icon.png">
+</head>
+<body>
+<title>Puzzle Table</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one-screen workbench. Toolbar strip on top; a felt puzzle board fills the left;
+   the piece tray (the open puzzle box) docks right, and moves to the bottom on phones. */
+:root {
+  --bg: #E3E8E5;
+  --surface: #F7F9F8;
+  --surface-2: #E9EEEB;
+  --ink: #17201E;
+  --muted: #586763;
+  --line: #C9D3CF;
+  --felt: #2D5852;
+  --felt-deep: #1F413C;
+  --accent: #E39A2A;
+  --accent-soft: rgba(227, 154, 42, .22);
+  --danger: #B3371F;
+  --scrim: rgba(12, 20, 18, .62);
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 12px;
+  --tp: 88px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101614; --surface: #19211F; --surface-2: #222C29; --ink: #E5ECE9; --muted: #95A6A1;
+    --line: #2F3B38; --felt: #22453F; --felt-deep: #16302C; --accent: #F2B04D;
+    --accent-soft: rgba(242, 176, 77, .2); --danger: #F0907A; --scrim: rgba(4, 8, 7, .72); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101614; --surface: #19211F; --surface-2: #222C29; --ink: #E5ECE9; --muted: #95A6A1;
+  --line: #2F3B38; --felt: #22453F; --felt-deep: #16302C; --accent: #F2B04D;
+  --accent-soft: rgba(242, 176, 77, .2); --danger: #F0907A; --scrim: rgba(4, 8, 7, .72); color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html { height: 100%; box-sizing: border-box; }
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  height: 100%; margin: 0; overflow: hidden;
+  background: var(--bg); color: var(--ink);
+  font: 14px/1.4 var(--font-body);
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.app {
+  height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px;
+  padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* ---------- toolbar ---------- */
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand h1 {
+  margin: 0; font: 800 22px/1 var(--font-display); letter-spacing: -.02em; white-space: nowrap;
+}
+.brand h1 span { color: var(--accent); }
+.photo-name {
+  color: var(--muted); font-size: 13px; max-width: 220px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.btn, .select {
+  height: 36px; padding: 0 14px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font: 500 14px/1 var(--font-body); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+}
+.btn:hover, .select:hover { border-color: var(--muted); }
+.btn:focus-visible, .select:focus-visible, .seg button:focus-visible, .zoom button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.btn svg { width: 16px; height: 16px; flex: none; }
+.btn kbd {
+  font: 500 10px/1 var(--font-mono); color: var(--muted); border: 1px solid var(--line);
+  border-radius: 4px; padding: 2px 4px;
+}
+.select { padding-right: 10px; }
+.status { display: flex; align-items: center; gap: 14px; font-variant-numeric: tabular-nums; }
+.progress { display: grid; gap: 5px; min-width: 128px; }
+.progress .label { font-size: 12px; color: var(--muted); }
+.progress .label b { color: var(--ink); font: 500 13px var(--font-mono); }
+.meter { height: 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+.timer { font: 500 15px var(--font-mono); min-width: 52px; text-align: right; }
+
+/* ---------- main split ---------- */
+.main {
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; min-height: 0;
+}
+.board-wrap { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius); overflow: hidden; }
+.board {
+  position: absolute; inset: 0; overflow: auto; display: flex;
+  background-color: var(--felt);
+  background-image: radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(0,0,0,.28)), var(--noise, none);
+  touch-action: none; cursor: default;
+  scrollbar-color: rgba(255,255,255,.25) transparent;
+}
+.board.panning { cursor: grabbing; }
+.sizer { position: relative; margin: auto; flex: none; }
+.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; --iz: 1; }
+.frame {
+  position: absolute; z-index: 0;
+  background: rgba(0, 0, 0, .2);
+  box-shadow: inset 0 0 0 calc(2px * var(--iz)) rgba(255,255,255,.18),
+              0 0 0 calc(1px * var(--iz)) rgba(0,0,0,.25);
+  border-radius: calc(3px * var(--iz));
+}
+.frame img { width: 100%; height: 100%; display: block; opacity: .26; pointer-events: none; }
+.world.complete .frame { box-shadow: none; }
+.hint-target {
+  position: absolute; z-index: 9000000; pointer-events: none;
+  border: calc(3px * var(--iz)) solid var(--accent); border-radius: calc(6px * var(--iz));
+  box-shadow: 0 0 0 calc(5px * var(--iz)) var(--accent-soft), 0 0 calc(18px * var(--iz)) var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: .45; } }
+
+/* pieces: one canvas each, reparented between tray, drag layer and board */
+.piece { display: block; touch-action: none; cursor: grab; -webkit-user-drag: none; }
+.world .piece { position: absolute; left: 0; top: 0; width: 164px; height: 164px; }
+.world .piece.loose { filter: drop-shadow(0 calc(2px * var(--iz)) calc(2px * var(--iz)) rgba(0,0,0,.5)); }
+.world .piece.locked { cursor: default; }
+.world .piece.glide { transition: transform .22s ease-out; }
+.world .piece.lifted { filter: drop-shadow(0 calc(9px * var(--iz)) calc(7px * var(--iz)) rgba(0,0,0,.45)); cursor: grabbing; }
+.world .piece.snap { animation: snap .45s ease-out; }
+@keyframes snap { 0% { filter: brightness(1.45); } 100% { filter: brightness(1); } }
+.piece.hinted { animation: glow 1.1s ease-in-out infinite; }
+@keyframes glow {
+  0%, 100% { filter: drop-shadow(0 0 2px var(--accent)) drop-shadow(0 0 1px var(--accent)); }
+  50% { filter: drop-shadow(0 0 9px var(--accent)) drop-shadow(0 0 3px var(--accent)); }
+}
+.drag-layer { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+.drag-layer .piece { position: absolute; left: 0; top: 0; filter: drop-shadow(0 8px 8px rgba(0,0,0,.4)); }
+
+/* board overlays */
+.zoom {
+  position: absolute; left: 12px; bottom: 12px; z-index: 5; display: flex; align-items: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.18);
+}
+.zoom button {
+  height: 30px; min-width: 30px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent;
+  color: var(--ink); font: 500 13px var(--font-body); cursor: pointer;
+}
+.zoom button:hover { background: var(--surface-2); }
+.zoom output { font: 500 12px var(--font-mono); color: var(--muted); min-width: 44px; text-align: center; }
+.toast {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 6;
+  width: max-content; max-width: calc(100% - 24px);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+  background: var(--ink); color: var(--bg); padding: 10px 10px 10px 16px; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.3);
+}
+.toast .actions { display: flex; gap: 6px; }
+.toast button {
+  height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--bg) 30%, transparent);
+  background: transparent; color: var(--bg); font: 500 13px var(--font-body); cursor: pointer;
+}
+.toast button.primary { background: var(--accent); border-color: var(--accent); color: #1C1205; }
+.overlay {
+  position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px;
+  background: var(--scrim);
+}
+.overlay.picture { cursor: zoom-out; }
+.overlay.picture { overflow: hidden; }
+.overlay.picture figure {
+  margin: 0; position: absolute; inset: 20px; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; justify-items: center;
+}
+.overlay.picture img {
+  width: 100%; height: 100%; min-height: 0; object-fit: contain; filter: drop-shadow(0 18px 30px rgba(0,0,0,.5));
+}
+.overlay.picture figcaption { color: #E9EFEC; font-size: 13px; }
+.card {
+  background: var(--surface); color: var(--ink); border-radius: 16px; padding: 24px; width: min(420px, 100%);
+  box-shadow: 0 24px 60px rgba(0,0,0,.35); display: grid; gap: 14px;
+}
+.card h2 { margin: 0; font: 800 28px/1.1 var(--font-display); letter-spacing: -.02em; text-wrap: balance; }
+.card p { margin: 0; color: var(--muted); }
+.card .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stats div { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; }
+.stats b { font: 500 18px var(--font-mono); font-variant-numeric: tabular-nums; }
+.stats span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.loading { color: #E9EFEC; font: 600 16px var(--font-display); }
+
+/* ---------- tray ---------- */
+.tray {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+}
+.tray.drop-target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.tray.drop-target .tray-list, .tray.drop-target .tray-empty { background: var(--accent-soft); }
+.tray-head { padding: 12px; display: grid; gap: 10px; border-bottom: 1px solid var(--line); }
+.tray-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.tray-title h2 { margin: 0; font: 600 16px var(--font-display); }
+.linkish {
+  border: 0; background: none; color: var(--muted); font: 500 13px var(--font-body); cursor: pointer; padding: 2px 4px;
+  border-radius: 5px;
+}
+.linkish:hover { color: var(--ink); }
+.linkish:focus-visible { outline: 2px solid var(--accent); }
+.seg {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px;
+  background: var(--surface-2); border-radius: 10px;
+}
+.seg button {
+  border: 0; background: transparent; color: var(--muted); border-radius: 7px; height: 32px; cursor: pointer;
+  font: 500 13px var(--font-body); display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.seg button b { font: 500 11px var(--font-mono); font-variant-numeric: tabular-nums; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.14); }
+.tray-list {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 6px;
+  display: flex; flex-wrap: wrap; align-content: flex-start; justify-content: center;
+  background: var(--surface-2); touch-action: pan-y;
+}
+.tray-list .piece {
+  touch-action: auto;
+  width: var(--tp); height: var(--tp); margin: -4px;
+  filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.35));
+}
+.tray-list .piece:hover { filter: drop-shadow(0 3px 4px rgba(0,0,0,.4)) brightness(1.06); }
+.tray-list[data-filter="edge"] .piece:not(.edge),
+.tray-list[data-filter="middle"] .piece.edge { display: none; }
+.tray-list .piece.hinted { animation: glow 1.1s ease-in-out infinite; }
+.tray-empty { padding: 24px 16px; color: var(--muted); text-align: center; width: 100%; }
+.tray-foot { padding: 8px 12px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
+.side-tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); flex: none; }
+.side-tabs button {
+  height: 42px; border: 0; border-bottom: 2px solid transparent; background: transparent; cursor: pointer;
+  color: var(--muted); font: 600 14px var(--font-display); display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.side-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.side-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.side-tabs b { font: 500 11px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.gallery-grid {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 10px; background: var(--surface-2);
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; align-content: start;
+}
+.g-card { position: relative; min-width: 0; }
+.g-item {
+  width: 100%; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: left;
+  cursor: pointer; display: grid; gap: 6px; border-radius: 8px;
+}
+.g-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.g-item img {
+  display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; background: var(--line);
+  transition: transform .15s ease;
+}
+.g-item:hover img { transform: translateY(-2px); }
+.g-item.broken img { visibility: hidden; }
+.g-card.current img { box-shadow: 0 0 0 3px var(--accent); }
+.g-thumb { position: relative; display: block; }
+.g-badge {
+  position: absolute; left: 6px; top: 6px; padding: 2px 8px; border-radius: 999px;
+  background: var(--accent); color: #1C1205; font: 600 11px var(--font-body);
+}
+.g-prog { display: flex; align-items: center; gap: 6px; font: 500 11px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.g-prog i { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; display: block; }
+.g-prog i span { display: block; height: 100%; background: var(--accent); }
+.g-prog.done { color: var(--ink); }
+.g-meta { display: grid; min-width: 0; }
+.g-meta b, .g-meta small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-meta b { font-size: 13px; font-weight: 600; }
+.g-meta small { font-size: 12px; color: var(--muted); }
+.g-del {
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; border: 0; cursor: pointer;
+  background: rgba(10, 16, 14, .66); color: #F4F7F5; font: 500 16px/1 var(--font-body); opacity: 0;
+}
+.g-card:hover .g-del, .g-del:focus-visible { opacity: 1; }
+.g-del:focus-visible { outline: 2px solid var(--accent); }
+@media (hover: none) { .g-del { opacity: 1; } }
+.gallery-empty { flex: 1; padding: 28px 18px; color: var(--muted); text-align: center; background: var(--surface-2); }
+.gallery-status.account { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-block: 4px; }
+.field { display: grid; gap: 6px; font-weight: 500; }
+.field input {
+  height: 42px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); font: 400 15px var(--font-body);
+  -webkit-user-select: text; user-select: text;
+}
+.field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.form-error { color: var(--danger); font-weight: 500; }
+.btn:disabled { opacity: .6; cursor: progress; }
+.gallery-status { padding: 8px 12px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
+
+.drop-zone {
+  position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: var(--scrim);
+  color: #F2F6F4; font: 700 24px var(--font-display); pointer-events: none;
+}
+.drop-zone div { border: 2px dashed currentColor; border-radius: 18px; padding: 28px 36px; text-align: center; }
+.drop-zone small { display: block; font: 400 14px var(--font-body); opacity: .8; margin-top: 6px; }
+.modal { position: fixed; z-index: 90; }
+
+@media (max-width: 760px) {
+  .app { gap: 8px; padding-block: 8px; }
+  .bar { gap: 6px 8px; }
+  .brand h1 { font-size: 18px; }
+  .photo-name { max-width: 120px; }
+  .btn .lbl-long, .btn kbd { display: none; }
+  .btn, .select { height: 34px; padding: 0 10px; }
+  .progress { min-width: 96px; }
+  .main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 210px; gap: 8px; }
+  .tray-head { padding: 8px; gap: 6px; }
+  .tray-title { display: none; }
+  .tray-list {
+    display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, calc(var(--tp) - 8px));
+    grid-auto-columns: calc(var(--tp) - 8px); overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
+    justify-content: start; align-content: center;
+  }
+  .tray-list .piece { margin: -4px; }
+  .tray-empty { grid-row: 1 / -1; width: 260px; }
+  .tray-foot { display: none; }
+  .side-tabs button { height: 34px; }
+  .gallery-grid {
+    grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 130px; overflow-x: auto; overflow-y: hidden;
+  }
+  .gallery-status { display: none; }
+  .stats b { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .piece.hinted, .tray-list .piece.hinted, .hint-target, .world .piece.snap { animation: none; }
+  .world .piece.glide, .meter i { transition: none; }
+}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <h1>Puzzle<span>·</span>Table</h1>
+      <span class="photo-name" id="photoName" title="Your photos stay on this device. Nothing is uploaded.">Sample picture</span>
+    </div>
+    <div class="group">
+      <label class="btn primary" for="fileInput" tabindex="0" id="chooseBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/></svg>
+        Choose photo
+      </label>
+      <input type="file" id="fileInput" accept="image/*" hidden>
+      <select class="select" id="countSelect" aria-label="Number of pieces"></select>
+    </div>
+    <div class="group">
+      <button class="btn" id="hintBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>
+        Hint <kbd>H</kbd>
+      </button>
+      <button class="btn" id="pictureBtn" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span><span class="lbl-long">Show </span>picture</span> <kbd>P</kbd>
+      </button>
+      <button class="btn" id="guideBtn" type="button" aria-pressed="false" title="Show a faint copy of the picture inside the frame">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/><path d="M3 15l5-5 4 4 3-3 6 6"/></svg>
+        <span class="lbl-long">Faint </span>guide <kbd>G</kbd>
+      </button>
+    </div>
+    <div class="spacer"></div>
+    <div class="status">
+      <div class="progress">
+        <span class="label"><b id="placedNum">0</b> of <b id="totalNum">0</b> placed</span>
+        <div class="meter"><i id="meter"></i></div>
+      </div>
+      <span class="timer" id="timer" aria-label="Elapsed time">0:00</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="board-wrap" aria-label="Puzzle board">
+      <div class="board" id="board">
+        <div class="sizer" id="sizer">
+          <div class="world" id="world">
+            <div class="frame" id="frame"><img id="ghost" alt="" hidden></div>
+            <div class="hint-target" id="hintTarget" hidden></div>
+          </div>
+        </div>
+      </div>
+      <div class="zoom" aria-label="Zoom">
+        <button type="button" id="zoomOut" aria-label="Zoom out">−</button>
+        <output id="zoomLabel">100%</output>
+        <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+        <button type="button" id="zoomFit">Fit</button>
+      </div>
+      <div class="toast" id="toast" role="status" hidden>
+        <span id="toastText"></span>
+        <div class="actions" id="toastActions"></div>
+      </div>
+      <div class="overlay picture" id="pictureOverlay" hidden>
+        <figure>
+          <img id="pictureImg" alt="The full puzzle picture">
+          <figcaption>Click anywhere or press P to go back to the puzzle</figcaption>
+        </figure>
+      </div>
+      <div class="overlay" id="loading" hidden><div class="loading" id="loadingText">Cutting pieces…</div></div>
+      <div class="overlay" id="finish" hidden>
+        <div class="card">
+          <h2>Puzzle complete</h2>
+          <div class="stats">
+            <div><b id="finPieces">0</b><span>Pieces</span></div>
+            <div><b id="finTime">0:00</b><span>Time</span></div>
+            <div><b id="finHints">0</b><span>Hints</span></div>
+          </div>
+          <div class="row">
+            <button class="btn" type="button" id="finAdmire">Admire it</button>
+            <button class="btn" type="button" id="finAgain">Cut it again</button>
+            <label class="btn primary" for="fileInput" tabindex="0">New photo</label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="tray" id="tray" aria-label="Pieces and gallery">
+      <div class="side-tabs" role="tablist">
+        <button type="button" role="tab" id="tabPieces" aria-selected="true">Pieces <b id="cntTab">0</b></button>
+        <button type="button" role="tab" id="tabGallery" aria-selected="false">Gallery <b id="galleryCount"></b></button>
+      </div>
+      <div class="pane" id="piecesPane">
+      <div class="tray-head">
+        <div class="tray-title">
+          <h2>In the tray</h2>
+          <button class="linkish" type="button" id="shuffleBtn">Shuffle</button>
+        </div>
+        <div class="seg" role="group" aria-label="Show pieces">
+          <button type="button" data-filter="all" aria-pressed="true">All <b id="cntAll">0</b></button>
+          <button type="button" data-filter="edge" aria-pressed="false">Edges <b id="cntEdge">0</b></button>
+          <button type="button" data-filter="middle" aria-pressed="false">Middle <b id="cntMid">0</b></button>
+        </div>
+      </div>
+      <div class="tray-list" id="trayList" data-filter="all"></div>
+      <div class="tray-empty" id="trayEmpty" hidden></div>
+      <div class="tray-foot">Drag a piece onto the board, or tap it to drop it in view. Drag loose pieces back here to put them away.</div>
+      </div>
+      <div class="pane" id="galleryPane" hidden>
+        <div class="gallery-grid" id="galleryGrid" hidden></div>
+        <div class="gallery-empty" id="galleryEmpty">Loading the gallery…</div>
+        <div class="gallery-status" id="galleryStatus" hidden></div>
+        <div class="gallery-status account" id="galleryAccount" hidden>
+          <span id="accountName"></span>
+          <button class="linkish" type="button" id="signOut">Sign out</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div class="drag-layer" id="dragLayer"></div>
+<div class="drop-zone" id="dropZone" hidden><div>Drop your photo to make a puzzle<small>It stays on this device</small></div></div>
+<div class="overlay modal" id="login" hidden>
+  <form class="card" id="loginForm" aria-labelledby="loginTitle">
+    <h2 id="loginTitle" style="font-size:24px">Join the family table</h2>
+    <p>Sign in to share photos with the family and keep your puzzles going on every device.</p>
+    <label class="field" for="loginName">Your name
+      <input id="loginName" name="name" autocomplete="nickname" maxlength="40" required>
+    </label>
+    <label class="field" for="loginPass">Family passcode
+      <input id="loginPass" name="passcode" type="password" autocomplete="current-password" required>
+    </label>
+    <p class="form-error" id="loginError" role="alert" hidden></p>
+    <div class="row">
+      <button class="btn" type="button" id="loginSkip">Just play</button>
+      <button class="btn primary" type="submit" id="loginSubmit">Sign in</button>
+    </div>
+  </form>
+</div>
+<div class="overlay modal" id="confirm" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <h2 id="confirmTitle" style="font-size:22px">Start a new puzzle?</h2>
+    <p id="confirmBody">Your current progress will be lost.</p>
+    <div class="row">
+      <button class="btn" type="button" id="confirmCancel">Keep playing</button>
+      <button class="btn primary" type="button" id="confirmOk">Start new puzzle</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+const COUNTS = [42, 72, 143, 288, 550, 1100];
+const CELL = 100;             // world units per piece
+const PAD = 32;               // room around a piece for tabs
+const PS = CELL + 2 * PAD;    // canvas size of a piece, in world units
+// One tab, as cubic segments [c1u,c1v,c2u,c2v,u,v] along a unit edge; v points outward.
+const TAB = [
+  [0.30, 0.00, 0.42, 0.02, 0.40, 0.08],
+  [0.32, 0.14, 0.34, 0.26, 0.50, 0.26],
+  [0.66, 0.26, 0.68, 0.14, 0.60, 0.08],
+  [0.58, 0.02, 0.70, 0.00, 1.00, 0.00],
+];
+const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+const $ = (id) => document.getElementById(id);
+const E = {
+  board: $('board'), sizer: $('sizer'), world: $('world'), frame: $('frame'), ghost: $('ghost'),
+  hintTarget: $('hintTarget'), tray: $('tray'), trayList: $('trayList'), trayEmpty: $('trayEmpty'), dragLayer: $('dragLayer'),
+  countSelect: $('countSelect'), fileInput: $('fileInput'), photoName: $('photoName'),
+  placedNum: $('placedNum'), totalNum: $('totalNum'), meter: $('meter'), timer: $('timer'),
+  cntAll: $('cntAll'), cntEdge: $('cntEdge'), cntMid: $('cntMid'),
+  toast: $('toast'), toastText: $('toastText'), toastActions: $('toastActions'),
+  pictureOverlay: $('pictureOverlay'), pictureImg: $('pictureImg'), pictureBtn: $('pictureBtn'),
+  guideBtn: $('guideBtn'), loading: $('loading'), loadingText: $('loadingText'),
+  piecesPane: $('piecesPane'), galleryPane: $('galleryPane'), galleryGrid: $('galleryGrid'), galleryEmpty: $('galleryEmpty'),
+  galleryStatus: $('galleryStatus'), galleryAccount: $('galleryAccount'), accountName: $('accountName'),
+  login: $('login'), loginForm: $('loginForm'), loginName: $('loginName'), loginPass: $('loginPass'),
+  loginError: $('loginError'), loginSubmit: $('loginSubmit'), galleryCount: $('galleryCount'), cntTab: $('cntTab'),
+  finish: $('finish'), zoomLabel: $('zoomLabel'), dropZone: $('dropZone'), confirm: $('confirm'),
+};
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+// Saved games live in IndexedDB: the photo as a blob, plus a small record of where every piece is.
+const db = (() => {
+  let opening = null;
+  const open = () => opening ??= new Promise((res, rej) => {
+    const r = indexedDB.open('puzzle-table', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  const run = async (mode, fn) => {
+    const d = await open();
+    return new Promise((res, rej) => {
+      const t = d.transaction('kv', mode), req = fn(t.objectStore('kv'));
+      t.oncomplete = () => res(req.result);
+      t.onerror = t.onabort = () => rej(t.error);
+    });
+  };
+  return {
+    get: (k) => run('readonly', (s) => s.get(k)).catch(() => null),
+    set: (k, v) => run('readwrite', (s) => s.put(v, k)).catch(() => {}),
+  };
+})();
+// Every photo keeps its own saved puzzle, under 'state:<photo key>' (a gallery photo's key is its asset id).
+// Gallery photos are also saved to the player's private db subtree, so progress follows them to other devices.
+let saveTimer = 0;
+const localSummaries = new Map();
+function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(() => saveNow(true), 400); }
+const freshest = (a, b) => (!a ? b || null : !b ? a : (b.at || 0) > (a.at || 0) ? b : a);
+function summaryOf(rec) {
+  if (!rec) return null;
+  return {
+    count: Number(rec.count) || 0, placed: Number(rec.placed) || 0, total: Number(rec.total || rec.count) || 1,
+    done: !!rec.done, ms: Number(rec.elapsed) || 0, at: Number(rec.at) || 0, completed: rec.completed || null,
+    started: rec.started ?? (Array.isArray(rec.gids) && rec.gids.some((g) => g >= 0)),
+  };
+}
+function progressFor(asset) { return freshest(localSummaries.get(asset), summaryOf(G.progress.get(asset))); }
+function saveNow(remote) {
+  clearTimeout(saveTimer);
+  if (!S || S.building || !source) return;
+  const key = source.asset || source.name;
+  const groups = [];
+  for (const g of S.groups.values()) if (g.members.size) groups.push([g.id, Math.round(g.ox * 10) / 10, Math.round(g.oy * 10) / 10]);
+  const elapsed = Math.round((S.done ? S.end : performance.now()) - S.start);
+  const prev = source.asset ? progressFor(source.asset) : localSummaries.get(key);
+  const gids = S.pieces.map((p) => p.gid ?? -1);
+  const rec = {
+    v: 1, photo: key, count: S.N, seed: S.seed, cols: S.cols, rows: S.rows,
+    trayOrder: S.trayOrder, gids, groups, hints: S.hints, elapsed,
+    placed: S.locked.members.size, total: S.N, done: S.done, started: gids.some((g) => g >= 0), at: Date.now(),
+    completed: S.done ? { count: S.N, ms: elapsed } : (prev && prev.completed) || null,
+  };
+  db.set('state:' + key, rec);
+  db.set('current', key);
+  localSummaries.set(key, summaryOf(rec));
+  db.set('summaries', Object.fromEntries(localSummaries));
+  if (remote === true && source.asset) queueRemote(source.asset, rec);
+  if (G.items.length) renderGallery();
+}
+let remoteTimer = 0, remotePending = null;
+function queueRemote(asset, rec) {
+  if (!G.backend || !G.backend.canSaveProgress || G.remoteOff) return;
+  if (remotePending && remotePending.asset !== asset) flushRemote();
+  remotePending = { asset, rec };
+  clearTimeout(remoteTimer);
+  remoteTimer = setTimeout(flushRemote, 1500);
+}
+function flushRemote() {
+  clearTimeout(remoteTimer);
+  if (!remotePending) return;
+  const { asset, rec } = remotePending;
+  remotePending = null;
+  const be = G.backend;
+  G.pchain = G.pchain.catch(() => {})
+    .then(() => be.saveProgress(asset, rec))
+    .catch((e) => { if (e && (e.code === 'forbidden' || e.code === 'unauthorized')) G.remoteOff = true; });
+}
+
+let S = null;          // current puzzle
+let source = null;     // { img, w, h, name, url }
+let count = +(store.get('pt.count') || 72);
+if (!COUNTS.includes(count)) count = 72;
+let filter = 'all';
+let zoom = 1, minZoom = 0.05;
+let zTop = 10;
+let buildToken = 0;
+let drag = null;
+let toastTimer = 0;
+
+const mulberry32 = (a) => () => {
+  a |= 0; a = a + 0x6D2B79F5 | 0;
+  let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+  return ((t ^ t >>> 14) >>> 0) / 4294967296;
+};
+const fmtTime = (ms) => {
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}` : `${m}:${String(ss).padStart(2, '0')}`;
+};
+
+// Pick the cols × rows split of n whose shape is closest to the photo, so pieces stay square.
+function gridFor(n, aspect) {
+  let best = null;
+  for (let c = 2; c <= n / 2; c++) {
+    if (n % c) continue;
+    const r = n / c;
+    const score = Math.abs(Math.log(c / r / aspect));
+    if (!best || score < best.score) best = { c, r, score };
+  }
+  return [best.c, best.r];
+}
+
+function refreshCountOptions() {
+  const aspect = source ? source.w / source.h : 1.5;
+  E.countSelect.innerHTML = '';
+  for (const n of COUNTS) {
+    const [c, r] = gridFor(n, aspect);
+    const o = document.createElement('option');
+    o.value = n; o.textContent = `${n} pieces · ${c}×${r}`;
+    E.countSelect.appendChild(o);
+  }
+  E.countSelect.value = count;
+}
+
+/* ---------------- piece shapes ---------------- */
+function makeEdge(rnd) {
+  return { s: rnd() < 0.5 ? 1 : -1, du: (rnd() - 0.5) * 0.1, h: 0.92 + rnd() * 0.14 };
+}
+// Draws one side from A to B (or B to A when reverse). N is the canonical normal; the tab bulges along N*s.
+function edgeTo(path, A, B, N, edge, reverse) {
+  if (!edge) { const P = reverse ? A : B; path.lineTo(P[0], P[1]); return; }
+  const map = (u, v) => {
+    const uu = u > 0 && u < 1 ? u + edge.du : u;
+    const vv = v * edge.s * edge.h * CELL;
+    return [A[0] + (B[0] - A[0]) * uu + N[0] * vv, A[1] + (B[1] - A[1]) * uu + N[1] * vv];
+  };
+  if (!reverse) {
+    for (const s of TAB) {
+      const c1 = map(s[0], s[1]), c2 = map(s[2], s[3]), p = map(s[4], s[5]);
+      path.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], p[0], p[1]);
+    }
+  } else {
+    for (let i = TAB.length - 1; i >= 0; i--) {
+      const s = TAB[i], st = i === 0 ? [0, 0] : [TAB[i - 1][4], TAB[i - 1][5]];
+      const c1 = map(s[2], s[3]), c2 = map(s[0], s[1]), p = map(st[0], st[1]);
+      path.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], p[0], p[1]);
+    }
+  }
+}
+function piecePath(r, c) {
+  const p = new Path2D(), o = PAD, s = CELL;
+  const TL = [o, o], TR = [o + s, o], BR = [o + s, o + s], BL = [o, o + s];
+  const h = (rr) => (rr > 0 && rr < S.rows ? S.hEdges[rr][c] : null);
+  const v = (cc) => (cc > 0 && cc < S.cols ? S.vEdges[r][cc] : null);
+  p.moveTo(TL[0], TL[1]);
+  edgeTo(p, TL, TR, [0, 1], h(r), false);
+  edgeTo(p, TR, BR, [1, 0], v(c + 1), false);
+  edgeTo(p, BL, BR, [0, 1], h(r + 1), true);
+  edgeTo(p, TL, BL, [1, 0], v(c), true);
+  p.closePath();
+  return p;
+}
+function cutPiece(p) {
+  const R = S.R, cv = document.createElement('canvas');
+  cv.width = cv.height = Math.ceil(PS * R);
+  cv.className = 'piece' + (p.edge ? ' edge' : '');
+  cv.dataset.id = p.id;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  ctx.scale(R, R);
+  const path = piecePath(p.r, p.c);
+  const x0 = p.c * CELL - PAD, y0 = p.r * CELL - PAD;
+  const sx0 = Math.max(0, x0), sy0 = Math.max(0, y0);
+  const sx1 = Math.min(S.W, x0 + PS), sy1 = Math.min(S.H, y0 + PS);
+  ctx.save();
+  ctx.clip(path);
+  ctx.drawImage(S.full, sx0 * R, sy0 * R, (sx1 - sx0) * R, (sy1 - sy0) * R, sx0 - x0, sy0 - y0, sx1 - sx0, sy1 - sy0);
+  // pressed-cardboard bevel: light on the top-left inside edge, shade on the bottom-right
+  ctx.lineWidth = 3.2;
+  ctx.translate(1.4, 1.4); ctx.strokeStyle = 'rgba(255,255,255,.32)'; ctx.stroke(path);
+  ctx.translate(-2.8, -2.8); ctx.strokeStyle = 'rgba(0,0,0,.34)'; ctx.stroke(path);
+  ctx.restore();
+  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.stroke(path);
+  return cv;
+}
+
+/* ---------------- build ---------------- */
+async function build(restore = null) {
+  if (!source) return;
+  const token = ++buildToken;
+  clearHint(); hideToast();
+  E.finish.hidden = true;
+  E.world.classList.remove('complete');
+  drag = null;
+  E.dragLayer.textContent = '';
+  E.world.querySelectorAll('.piece').forEach((el) => el.remove());
+  E.trayList.textContent = '';
+
+  const [cols, rows] = gridFor(count, source.w / source.h);
+  const N = cols * rows, W = cols * CELL, H = rows * CELL;
+  const mg = Math.round(Math.max(2 * CELL, 0.2 * Math.max(W, H)));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const R = Math.max(0.3, Math.min(dpr, Math.sqrt(32e6 / N) / PS));
+
+  const full = document.createElement('canvas');
+  full.width = Math.round(W * R); full.height = Math.round(H * R);
+  const fx = full.getContext('2d');
+  fx.imageSmoothingQuality = 'high';
+  let sx = 0, sy = 0, sw = source.w, sh = source.h;
+  const a = cols / rows;
+  if (sw / sh > a) { const nw = sh * a; sx = (sw - nw) / 2; sw = nw; } else { const nh = sw / a; sy = (sh - nh) / 2; sh = nh; }
+  fx.drawImage(source.img, sx, sy, sw, sh, 0, 0, full.width, full.height);
+
+  const pv = document.createElement('canvas'), k = Math.min(1, 1600 / full.width);
+  pv.width = Math.round(full.width * k); pv.height = Math.round(full.height * k);
+  pv.getContext('2d').drawImage(full, 0, 0, pv.width, pv.height);
+  const previewURL = pv.toDataURL('image/jpeg', 0.88);
+
+  const seed = restore ? restore.seed : (Math.random() * 2 ** 31) | 0;
+  const rnd = mulberry32(seed);
+  const hEdges = [], vEdges = [];
+  for (let r = 0; r <= rows; r++) { hEdges.push([]); for (let c = 0; c < cols; c++) hEdges[r].push(makeEdge(rnd)); }
+  for (let r = 0; r < rows; r++) { vEdges.push([]); for (let c = 0; c <= cols; c++) vEdges[r].push(makeEdge(rnd)); }
+
+  const locked = { id: 0, ox: mg, oy: mg, locked: true, members: new Set() };
+  S = {
+    cols, rows, N, W, H, mg, worldW: W + 2 * mg, worldH: H + 2 * mg, R, full, hEdges, vEdges,
+    pieces: [], groups: new Map([[0, locked]]), locked, nextGid: 1, trayOrder: [], trayIndex: null,
+    seed, hints: 0, start: 0, end: 0, done: false, building: true, hint: null, previewURL,
+  };
+  E.totalNum.textContent = N;
+  E.pictureImg.src = previewURL;
+  E.ghost.src = previewURL;
+  Object.assign(E.world.style, { width: S.worldW + 'px', height: S.worldH + 'px' });
+  Object.assign(E.frame.style, { left: mg + 'px', top: mg + 'px', width: W + 'px', height: H + 'px' });
+  document.documentElement.style.setProperty('--tp', N >= 550 ? '76px' : '88px');
+  fitZoom();
+
+  E.loading.hidden = false;
+  for (let i = 0; i < N; i++) {
+    const r = Math.floor(i / cols), c = i % cols;
+    const p = { id: i, r, c, edge: r === 0 || c === 0 || r === rows - 1 || c === cols - 1, where: 'tray', gid: null, locked: false, el: null };
+    p.el = cutPiece(p);
+    S.pieces.push(p);
+    if (i % 50 === 49) {
+      E.loadingText.textContent = `Cutting pieces… ${i + 1} of ${N}`;
+      await new Promise((res) => setTimeout(res, 0));
+      if (token !== buildToken) return;
+    }
+  }
+  S.trayOrder = shuffled(S.pieces.map((p) => p.id), rnd);
+  const resumed = !!restore && restore.cols === cols && restore.rows === rows && restore.gids.length === N;
+  if (resumed) applySaved(restore);
+  renderTray();
+  E.loading.hidden = true;
+  S.building = false;
+  S.start = performance.now() - (resumed ? restore.elapsed || 0 : 0);
+  if (resumed && S.locked.members.size === N) {
+    S.done = true; S.end = performance.now();
+    E.world.classList.add('complete');
+  }
+  updateStatus();
+  tick();
+  saveNow(!resumed);
+  return resumed;
+}
+
+// Puts pieces back where a saved game left them. Edge shapes come back from the saved seed.
+function applySaved(st) {
+  if (st.trayOrder && st.trayOrder.length === S.N) S.trayOrder = st.trayOrder.slice();
+  S.hints = st.hints || 0;
+  for (const [id, ox, oy] of st.groups) {
+    if (id === 0) continue;
+    S.groups.set(id, { id, ox, oy, locked: false, members: new Set() });
+    S.nextGid = Math.max(S.nextGid, id + 1);
+  }
+  st.gids.forEach((gid, i) => {
+    const g = gid >= 0 && S.groups.get(gid);
+    if (!g) return;
+    const p = S.pieces[i];
+    g.members.add(i); p.gid = gid; p.where = 'board';
+    E.world.appendChild(p.el);
+    if (g.locked) lockPiece(p); else p.el.classList.add('loose');
+    positionPiece(p);
+  });
+  for (const g of [...S.groups.values()]) {
+    if (g.locked) continue;
+    if (!g.members.size) S.groups.delete(g.id); else raise(g);
+  }
+}
+
+function shuffled(arr, rnd = Math.random) {
+  for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+  return arr;
+}
+function renderTray() {
+  S.trayIndex = new Int32Array(S.N);
+  S.trayOrder.forEach((id, i) => { S.trayIndex[id] = i; });
+  const frag = document.createDocumentFragment();
+  for (const id of S.trayOrder) { const p = S.pieces[id]; if (p.where === 'tray') frag.appendChild(p.el); }
+  E.trayList.appendChild(frag);
+}
+
+/* ---------------- zoom & coordinates ---------------- */
+function applyZoom() {
+  if (!S) return;
+  E.sizer.style.width = S.worldW * zoom + 'px';
+  E.sizer.style.height = S.worldH * zoom + 'px';
+  E.world.style.transform = `scale(${zoom})`;
+  E.world.style.setProperty('--iz', (1 / zoom).toFixed(4));
+  E.zoomLabel.textContent = Math.round(zoom * 100) + '%';
+}
+function computeMinZoom() {
+  return Math.min(E.board.clientWidth / S.worldW, E.board.clientHeight / S.worldH);
+}
+function fitZoom() {
+  minZoom = computeMinZoom();
+  zoom = minZoom;
+  applyZoom();
+  E.board.scrollLeft = 0; E.board.scrollTop = 0;
+}
+function setZoom(z, cx, cy) {
+  if (!S) return;
+  z = Math.max(minZoom, Math.min(3, z));
+  const b = E.board.getBoundingClientRect();
+  if (cx == null) { cx = b.left + b.width / 2; cy = b.top + b.height / 2; }
+  const wr = E.world.getBoundingClientRect();
+  const wx = (cx - wr.left) / zoom, wy = (cy - wr.top) / zoom;
+  zoom = z; applyZoom();
+  const wr2 = E.world.getBoundingClientRect();
+  E.board.scrollLeft += wr2.left + wx * zoom - cx;
+  E.board.scrollTop += wr2.top + wy * zoom - cy;
+}
+function worldPt(x, y) {
+  const r = E.world.getBoundingClientRect();
+  return { x: (x - r.left) / zoom, y: (y - r.top) / zoom };
+}
+function inRect(el, x, y) {
+  const r = el.getBoundingClientRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+function centerOn(wx, wy) {
+  const b = E.board.getBoundingClientRect(), wr = E.world.getBoundingClientRect();
+  const sx = wr.left + wx * zoom, sy = wr.top + wy * zoom;
+  const m = 60;
+  if (sx < b.left + m || sx > b.right - m || sy < b.top + m || sy > b.bottom - m) {
+    E.board.scrollLeft += sx - (b.left + b.width / 2);
+    E.board.scrollTop += sy - (b.top + b.height / 2);
+  }
+}
+new ResizeObserver(() => {
+  if (!S) return;
+  const atFit = Math.abs(zoom - minZoom) < 1e-3;
+  minZoom = computeMinZoom();
+  if (atFit || zoom < minZoom) { zoom = minZoom; applyZoom(); }
+}).observe(E.board);
+
+/* ---------------- groups ---------------- */
+function positionPiece(p) {
+  const g = S.groups.get(p.gid);
+  p.el.style.transform = `translate(${p.c * CELL + g.ox - PAD}px, ${p.r * CELL + g.oy - PAD}px)`;
+}
+function positionGroup(g) { for (const id of g.members) positionPiece(S.pieces[id]); }
+function raise(g) { for (const id of g.members) S.pieces[id].el.style.zIndex = ++zTop; }
+function groupBox(g) {
+  let r0 = Infinity, r1 = -1, c0 = Infinity, c1 = -1;
+  for (const id of g.members) {
+    const p = S.pieces[id];
+    r0 = Math.min(r0, p.r); r1 = Math.max(r1, p.r); c0 = Math.min(c0, p.c); c1 = Math.max(c1, p.c);
+  }
+  return { r0, r1, c0, c1 };
+}
+function clampGroup(g, box = groupBox(g)) {
+  g.ox = Math.max(-box.c0 * CELL, Math.min(S.worldW - (box.c1 + 1) * CELL, g.ox));
+  g.oy = Math.max(-box.r0 * CELL, Math.min(S.worldH - (box.r1 + 1) * CELL, g.oy));
+}
+function lockPiece(p) {
+  p.locked = true;
+  p.el.classList.remove('loose', 'lifted');
+  p.el.classList.add('locked');
+  p.el.style.zIndex = '1';
+}
+// Joins `moving` onto `target`; the moving pieces jump to the target's alignment.
+function merge(target, moving) {
+  let keep, other;
+  if (target.locked) { keep = target; other = moving; }
+  else if (moving.locked) { keep = moving; other = target; }
+  else if (target.members.size >= moving.members.size) { keep = target; other = moving; }
+  else { keep = moving; other = target; moving.ox = target.ox; moving.oy = target.oy; }
+  for (const id of other.members) { keep.members.add(id); S.pieces[id].gid = keep.id; }
+  S.groups.delete(other.id);
+  if (keep.locked) for (const id of other.members) lockPiece(S.pieces[id]);
+  if (keep === moving && !moving.locked) positionGroup(keep);
+  else for (const id of other.members) positionPiece(S.pieces[id]);
+  return keep;
+}
+function snapThreshold() { return Math.min(CELL * 0.42, Math.max(CELL * 0.26, 14 / zoom)); }
+
+// After a drop: lock to the frame if close to home, and bind to any matching neighbours.
+function settle(g) {
+  const moved = [...g.members];
+  const th = snapThreshold();
+  let snapped = false;
+  outer: for (;;) {
+    if (!g.locked && Math.abs(g.ox - S.mg) < th && Math.abs(g.oy - S.mg) < th) {
+      g = merge(S.locked, g); snapped = true; continue;
+    }
+    for (const id of g.members) {
+      const p = S.pieces[id];
+      for (const [dr, dc] of DIRS) {
+        const rr = p.r + dr, cc = p.c + dc;
+        if (rr < 0 || cc < 0 || rr >= S.rows || cc >= S.cols) continue;
+        const n = S.pieces[rr * S.cols + cc];
+        if (n.where !== 'board' || n.gid === g.id) continue;
+        const h = S.groups.get(n.gid);
+        if (Math.abs(h.ox - g.ox) < th && Math.abs(h.oy - g.oy) < th) { g = merge(h, g); snapped = true; continue outer; }
+      }
+    }
+    break;
+  }
+  if (snapped && moved.length <= 200) {
+    for (const id of moved) {
+      const el = S.pieces[id].el;
+      el.classList.remove('snap'); void el.offsetWidth; el.classList.add('snap');
+    }
+    setTimeout(() => moved.forEach((id) => S && S.pieces[id] && S.pieces[id].el.classList.remove('snap')), 500);
+  }
+  if (S.hint && S.hint.p.locked) clearHint(true);
+  updateStatus();
+  scheduleSave();
+  if (S.locked.members.size === S.N) finish();
+}
+
+function placeOnBoard(p, elX, elY) {
+  const g = { id: S.nextGid++, ox: elX + PAD - p.c * CELL, oy: elY + PAD - p.r * CELL, locked: false, members: new Set([p.id]) };
+  S.groups.set(g.id, g);
+  p.gid = g.id; p.where = 'board';
+  p.el.style.width = p.el.style.height = '';
+  p.el.classList.add('loose');
+  p.el.classList.remove('lifted');
+  E.world.appendChild(p.el);
+  clampGroup(g); positionPiece(p); raise(g);
+  settle(g);
+}
+function returnToTray(p) {
+  if (p.gid != null) {
+    const g = S.groups.get(p.gid);
+    g.members.delete(p.id);
+    if (!g.members.size) S.groups.delete(g.id);
+  }
+  p.gid = null; p.where = 'tray';
+  p.el.classList.remove('loose', 'lifted', 'glide', 'snap');
+  p.el.style.transform = p.el.style.width = p.el.style.height = p.el.style.zIndex = '';
+  let before = null;
+  for (let i = S.trayIndex[p.id] + 1; i < S.trayOrder.length; i++) {
+    const q = S.pieces[S.trayOrder[i]];
+    if (q.where === 'tray' && q.el.parentNode === E.trayList) { before = q.el; break; }
+  }
+  E.trayList.insertBefore(p.el, before);
+  updateStatus();
+  scheduleSave();
+}
+
+/* ---------------- pointer handling ---------------- */
+function alphaAt(cv, x, y) {
+  const r = cv.getBoundingClientRect();
+  const px = Math.floor((x - r.left) / r.width * cv.width), py = Math.floor((y - r.top) / r.height * cv.height);
+  if (px < 0 || py < 0 || px >= cv.width || py >= cv.height) return 0;
+  return cv.getContext('2d', { willReadFrequently: true }).getImageData(px, py, 1, 1).data[3];
+}
+function boardPieceAt(x, y) {
+  for (const el of document.elementsFromPoint(x, y)) {
+    if (!el.classList.contains('piece') || el.parentNode !== E.world) continue;
+    if (alphaAt(el, x, y) > 24) return S.pieces[+el.dataset.id];
+  }
+  return null;
+}
+
+E.board.addEventListener('pointerdown', (e) => {
+  if (!S || S.building || e.button > 0 || drag) return;
+  const p = boardPieceAt(e.clientX, e.clientY);
+  e.preventDefault();
+  if (p && !p.locked) {
+    const g = S.groups.get(p.gid);
+    raise(g);
+    for (const id of g.members) S.pieces[id].el.classList.remove('glide');
+    if (g.members.size <= 200) for (const id of g.members) S.pieces[id].el.classList.add('lifted');
+    const start = worldPt(e.clientX, e.clientY);
+    drag = { type: 'group', g, start, ox: g.ox, oy: g.oy, box: groupBox(g), id: e.pointerId, floating: false };
+    if (g.members.size === 1) {
+      // remember where the piece was grabbed so it can float over the tray under the pointer
+      drag.p = p;
+      drag.fx = (start.x - (p.c * CELL + g.ox - PAD)) / PS;
+      drag.fy = (start.y - (p.r * CELL + g.oy - PAD)) / PS;
+    }
+  } else {
+    drag = { type: 'pan', x: e.clientX, y: e.clientY, sl: E.board.scrollLeft, st: E.board.scrollTop, id: e.pointerId };
+    E.board.classList.add('panning');
+  }
+});
+
+E.trayList.addEventListener('pointerdown', (e) => {
+  if (!S || S.building || e.button > 0 || drag) return;
+  const el = e.target.closest('.piece');
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  drag = {
+    type: 'tray-pending', p: S.pieces[+el.dataset.id], id: e.pointerId,
+    fx: (e.clientX - r.left) / r.width, fy: (e.clientY - r.top) / r.height, x0: e.clientX, y0: e.clientY,
+  };
+});
+
+// A single board piece dragged over the tray leaves the board's clipped area so it stays visible.
+function setFloating(on) {
+  const el = drag.p.el;
+  drag.floating = on;
+  if (on) {
+    el.style.width = el.style.height = PS * zoom + 'px';
+    E.dragLayer.appendChild(el);
+  } else {
+    el.style.width = el.style.height = '';
+    E.world.appendChild(el);
+    positionPiece(drag.p);
+  }
+}
+function moveTrayGhost(x, y) {
+  const size = PS * zoom;
+  drag.p.el.style.transform = `translate(${x - drag.fx * size}px, ${y - drag.fy * size}px)`;
+}
+
+window.addEventListener('pointermove', (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  if (drag.type === 'pan') {
+    E.board.scrollLeft = drag.sl - (e.clientX - drag.x);
+    E.board.scrollTop = drag.st - (e.clientY - drag.y);
+  } else if (drag.type === 'group') {
+    const w = worldPt(e.clientX, e.clientY), g = drag.g;
+    const over = inRect(E.tray, e.clientX, e.clientY);
+    E.tray.classList.toggle('drop-target', over);
+    if (drag.p && over !== drag.floating) setFloating(over);
+    g.ox = drag.ox + w.x - drag.start.x;
+    g.oy = drag.oy + w.y - drag.start.y;
+    clampGroup(g, drag.box);
+    if (drag.floating) moveTrayGhost(e.clientX, e.clientY);
+    else positionGroup(g);
+  } else if (drag.type === 'tray-pending') {
+    if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
+    drag.type = 'tray';
+    const el = drag.p.el, size = PS * zoom;
+    el.style.width = el.style.height = size + 'px';
+    E.dragLayer.appendChild(el);
+    moveTrayGhost(e.clientX, e.clientY);
+  } else if (drag.type === 'tray') {
+    moveTrayGhost(e.clientX, e.clientY);
+  }
+});
+
+function endDrag(e, cancelled) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag; drag = null;
+  if (!S) return;
+  if (d.type === 'pan') { E.board.classList.remove('panning'); return; }
+  if (d.type === 'group') {
+    E.tray.classList.remove('drop-target');
+    for (const id of d.g.members) S.pieces[id].el.classList.remove('lifted');
+    if (!cancelled && inRect(E.tray, e.clientX, e.clientY)) {
+      for (const id of [...d.g.members]) returnToTray(S.pieces[id]);
+    } else {
+      if (d.floating) { drag = d; setFloating(false); drag = null; }
+      settle(d.g);
+    }
+    return;
+  }
+  if (d.type === 'tray-pending') {
+    if (!cancelled) dropInView(d.p);
+    return;
+  }
+  // tray drag
+  if (!cancelled && inRect(E.board, e.clientX, e.clientY)) {
+    const w = worldPt(e.clientX, e.clientY);
+    placeOnBoard(d.p, w.x - d.fx * PS, w.y - d.fy * PS);
+  } else {
+    returnToTray(d.p);
+  }
+}
+window.addEventListener('pointerup', (e) => endDrag(e, false));
+window.addEventListener('pointercancel', (e) => endDrag(e, true));
+
+// Tapping a tray piece drops it somewhere visible on the board, off to the side of the frame when there is room.
+function dropInView(p) {
+  const b = E.board.getBoundingClientRect();
+  const a = worldPt(b.left, b.top), z = worldPt(b.right, b.bottom);
+  const x0 = Math.max(0, a.x), y0 = Math.max(0, a.y), x1 = Math.min(S.worldW, z.x), y1 = Math.min(S.worldH, z.y);
+  const spots = [];
+  for (let i = 0; i < 24; i++) {
+    const x = x0 + Math.random() * Math.max(0, x1 - x0 - PS), y = y0 + Math.random() * Math.max(0, y1 - y0 - PS);
+    const inside = x + PS > S.mg && x < S.mg + S.W && y + PS > S.mg && y < S.mg + S.H;
+    spots.push({ x, y, inside });
+    if (!inside) break;
+  }
+  const s = spots.find((q) => !q.inside) || spots[0];
+  placeOnBoard(p, s.x, s.y);
+}
+
+E.board.addEventListener('wheel', (e) => {
+  if (!e.ctrlKey || !S) return;
+  e.preventDefault();
+  setZoom(zoom * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+}, { passive: false });
+
+$('zoomIn').onclick = () => setZoom(zoom * 1.3);
+$('zoomOut').onclick = () => setZoom(zoom / 1.3);
+$('zoomFit').onclick = () => S && fitZoom();
+
+/* ---------------- tray filter ---------------- */
+document.querySelectorAll('.seg button').forEach((btn) => {
+  btn.onclick = () => setFilter(btn.dataset.filter);
+});
+function setFilter(f) {
+  filter = f;
+  E.trayList.dataset.filter = f;
+  store.set('pt.filter', f);
+  document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.filter === f));
+  E.trayList.scrollTop = 0; E.trayList.scrollLeft = 0;
+  if (S) updateStatus();
+}
+$('shuffleBtn').onclick = () => {
+  if (!S || S.building) return;
+  shuffled(S.trayOrder);
+  renderTray();
+  scheduleSave();
+};
+
+/* ---------------- status, timer, finish ---------------- */
+function updateStatus() {
+  const placed = S.locked.members.size;
+  E.placedNum.textContent = placed;
+  E.meter.style.width = (placed / S.N * 100).toFixed(2) + '%';
+  let te = 0, tm = 0;
+  for (const p of S.pieces) if (p.where === 'tray') p.edge ? te++ : tm++;
+  E.cntAll.textContent = te + tm; E.cntTab.textContent = te + tm; E.cntEdge.textContent = te; E.cntMid.textContent = tm;
+  const vis = filter === 'all' ? te + tm : filter === 'edge' ? te : tm;
+  E.trayEmpty.hidden = vis > 0 || S.building;
+  E.trayEmpty.textContent = filter === 'all' ? 'The tray is empty. Every piece is on the board.'
+    : filter === 'edge' ? 'No edge pieces left in the tray.' : 'No middle pieces left in the tray.';
+  E.trayList.hidden = vis === 0 && !S.building;
+}
+function tick() {
+  if (!S) return;
+  const t = S.done ? S.end - S.start : S.building ? 0 : performance.now() - S.start;
+  E.timer.textContent = fmtTime(t);
+}
+setInterval(tick, 500);
+
+function finish() {
+  if (S.done) return;
+  S.done = true; S.end = performance.now();
+  clearHint(); hideToast();
+  E.world.classList.add('complete');
+  tick();
+  $('finPieces').textContent = S.N;
+  $('finTime').textContent = fmtTime(S.end - S.start);
+  $('finHints').textContent = S.hints;
+  saveNow(true);
+  setTimeout(() => { if (S && S.done) { fitZoom(); E.finish.hidden = false; } }, 650);
+}
+$('finAdmire').onclick = () => { E.finish.hidden = true; };
+$('finAgain').onclick = () => build();
+
+/* ---------------- hints ---------------- */
+function neighbours(p) {
+  return DIRS.map(([dr, dc]) => {
+    const r = p.r + dr, c = p.c + dc;
+    return r >= 0 && c >= 0 && r < S.rows && c < S.cols ? S.pieces[r * S.cols + c] : null;
+  }).filter(Boolean);
+}
+function inFilter(p) { return filter === 'all' || (filter === 'edge') === p.edge; }
+function hint() {
+  if (!S || S.building || S.done) return;
+  clearHint();
+  let cand = S.pieces.filter((p) => !p.locked && (p.where === 'board' || inFilter(p)));
+  if (!cand.length) cand = S.pieces.filter((p) => !p.locked);
+  if (!cand.length) return;
+  const corner = (p) => (p.r === 0 || p.r === S.rows - 1) && (p.c === 0 || p.c === S.cols - 1);
+  const pools = [
+    cand.filter((p) => neighbours(p).some((n) => n.locked)),
+    cand.filter(corner),
+    cand.filter((p) => p.edge),
+    cand,
+  ];
+  const pool = pools.find((x) => x.length);
+  const p = pool[Math.floor(Math.random() * pool.length)];
+  S.hints++;
+  scheduleSave();
+  S.hint = { p };
+  p.el.classList.add('hinted');
+  Object.assign(E.hintTarget.style, {
+    left: S.mg + p.c * CELL + 'px', top: S.mg + p.r * CELL + 'px', width: CELL + 'px', height: CELL + 'px',
+  });
+  E.hintTarget.hidden = false;
+  centerOn(S.mg + (p.c + 0.5) * CELL, S.mg + (p.r + 0.5) * CELL);
+  if (p.where === 'tray') { setSide('pieces'); p.el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }
+  const where = p.where === 'tray' ? 'in the tray' : 'on the board';
+  showToast(`Hint ${S.hints}: the glowing piece ${where} fits in the outlined spot.`, [
+    { label: 'Place it', primary: true, fn: () => autoPlace(p) },
+    { label: 'Got it', fn: () => clearHint() },
+  ]);
+}
+function autoPlace(p) {
+  if (!S || p.locked) return;
+  if (p.where === 'tray') {
+    placeOnBoard(p, S.mg + p.c * CELL - PAD, S.mg + p.r * CELL - PAD);
+  } else {
+    const g = S.groups.get(p.gid);
+    for (const id of g.members) S.pieces[id].el.classList.add('glide');
+    g.ox = S.mg; g.oy = S.mg;
+    positionGroup(g); raise(g);
+    setTimeout(() => { for (const id of g.members) S.pieces[id] && S.pieces[id].el.classList.remove('glide'); }, 260);
+    settle(g);
+  }
+  clearHint();
+}
+function clearHint(keepToast) {
+  if (S && S.hint) S.hint.p.el.classList.remove('hinted');
+  if (S) S.hint = null;
+  E.hintTarget.hidden = true;
+  if (!keepToast) hideToast();
+  else if (!E.toast.hidden && E.toastText.textContent.startsWith('Hint')) hideToast();
+}
+$('hintBtn').onclick = hint;
+
+/* ---------------- toast ---------------- */
+function showToast(text, actions = [], ms = 0) {
+  clearTimeout(toastTimer);
+  E.toastText.textContent = text;
+  E.toastActions.textContent = '';
+  for (const a of actions) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = a.label;
+    if (a.primary) b.className = 'primary';
+    b.onclick = a.fn;
+    E.toastActions.appendChild(b);
+  }
+  E.toast.hidden = false;
+  if (ms) toastTimer = setTimeout(hideToast, ms);
+}
+function hideToast() { clearTimeout(toastTimer); E.toast.hidden = true; }
+
+/* ---------------- picture & guide ---------------- */
+function togglePicture(force) {
+  const on = force ?? E.pictureOverlay.hidden;
+  E.pictureOverlay.hidden = !on;
+  E.pictureBtn.setAttribute('aria-pressed', on);
+}
+E.pictureBtn.onclick = () => togglePicture();
+E.pictureOverlay.onclick = () => togglePicture(false);
+function setGuide(on) {
+  E.ghost.hidden = !on;
+  E.guideBtn.setAttribute('aria-pressed', on);
+  store.set('pt.guide', on ? '1' : '0');
+}
+E.guideBtn.onclick = () => setGuide(E.ghost.hidden);
+setGuide(store.get('pt.guide') === '1');
+
+/* ---------------- photos ---------------- */
+function needsConfirm() { return S && !S.done && !S.building && S.pieces.some((p) => p.where === 'board'); }
+function ask(title, body, okLabel) {
+  return new Promise((res) => {
+    $('confirmTitle').textContent = title;
+    $('confirmBody').textContent = body;
+    const ok = $('confirmOk'), cancel = $('confirmCancel');
+    ok.textContent = okLabel;
+    E.confirm.hidden = false;
+    ok.focus();
+    const done = (v) => { E.confirm.hidden = true; ok.onclick = cancel.onclick = null; res(v); };
+    ok.onclick = () => done(true);
+    cancel.onclick = () => done(false);
+  });
+}
+function loadFile(file) {
+  if (!file) return;
+  if (file.type && !file.type.startsWith('image/')) {
+    showToast('That file is not a picture. Choose a JPG, PNG, or WebP photo.', [], 5000);
+    return;
+  }
+  const url = URL.createObjectURL(file), img = new Image();
+  img.onload = async () => {
+    saveNow();
+    if (source && source.url) URL.revokeObjectURL(source.url);
+    source = { img, w: img.naturalWidth, h: img.naturalHeight, name: file.name, url };
+    db.set('image', { blob: file, name: file.name });
+    renderGallery();
+    shareToGallery(file, img);
+    E.photoName.textContent = file.name;
+    refreshCountOptions();
+    build();
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    showToast(`“${file.name}” could not be opened. Try a JPG, PNG, or WebP photo.`, [], 6000);
+  };
+  img.src = url;
+}
+E.fileInput.addEventListener('change', () => { loadFile(E.fileInput.files[0]); E.fileInput.value = ''; });
+document.querySelectorAll('label[for="fileInput"]').forEach((l) => l.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); E.fileInput.click(); }
+}));
+E.countSelect.addEventListener('change', async () => {
+  const n = +E.countSelect.value;
+  if (needsConfirm() && !(await ask(`Start a ${n}-piece puzzle?`, 'Your progress on the current puzzle will be lost.', 'Start new puzzle'))) {
+    E.countSelect.value = count; return;
+  }
+  count = n; store.set('pt.count', String(n));
+  build();
+});
+
+let dragDepth = 0;
+const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+window.addEventListener('dragenter', (e) => { if (hasFiles(e)) { dragDepth++; E.dropZone.hidden = false; } });
+window.addEventListener('dragleave', (e) => { if (hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; E.dropZone.hidden = true; } });
+window.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener('drop', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); dragDepth = 0; E.dropZone.hidden = true;
+  loadFile(e.dataTransfer.files[0]);
+});
+window.addEventListener('paste', (e) => {
+  const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
+  if (item) loadFile(item.getAsFile());
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.target.closest('input, select, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!E.confirm.hidden) { if (e.key === 'Escape') $('confirmCancel').click(); return; }
+  const k = e.key.toLowerCase();
+  if (k === 'h') hint();
+  else if (k === 'p') togglePicture();
+  else if (k === 'g') setGuide(E.ghost.hidden);
+  else if (k === 'escape') { togglePicture(false); E.finish.hidden = true; clearHint(); }
+  else if (k === '+' || k === '=') setZoom(zoom * 1.3);
+  else if (k === '-') setZoom(zoom / 1.3);
+  else if (k === '0') S && fitZoom();
+});
+
+/* ---------------- felt texture & sample picture ---------------- */
+function feltNoise() {
+  const c = document.createElement('canvas'); c.width = c.height = 160;
+  const x = c.getContext('2d'), d = x.createImageData(160, 160), rnd = mulberry32(3);
+  for (let i = 0; i < d.data.length; i += 4) {
+    const v = rnd() < 0.5 ? 0 : 255;
+    d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = rnd() * 16;
+  }
+  x.putImageData(d, 0, 0);
+  E.board.style.setProperty('--noise', `url(${c.toDataURL()})`);
+}
+
+function makeSample() {
+  const W = 1800, H = 1200, WL = H * 0.63;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d'), rnd = mulberry32(11);
+  let g = x.createLinearGradient(0, 0, 0, WL);
+  g.addColorStop(0, '#20386b'); g.addColorStop(0.4, '#6a74b0'); g.addColorStop(0.72, '#e39b7e'); g.addColorStop(1, '#f8d59c');
+  x.fillStyle = g; x.fillRect(0, 0, W, WL);
+  const sx = W * 0.66, sy = WL - 70;
+  g = x.createRadialGradient(sx, sy, 0, sx, sy, 380);
+  g.addColorStop(0, 'rgba(255,246,214,1)'); g.addColorStop(0.12, 'rgba(255,228,170,.95)');
+  g.addColorStop(0.35, 'rgba(255,190,130,.35)'); g.addColorStop(1, 'rgba(255,170,120,0)');
+  x.fillStyle = g; x.fillRect(0, 0, W, WL);
+  for (let i = 0; i < 12; i++) {
+    const cx = rnd() * W, cy = H * (0.07 + rnd() * 0.26), s = 60 + rnd() * 110;
+    x.fillStyle = `rgba(255,${205 + rnd() * 30 | 0},${190 + rnd() * 30 | 0},${0.22 + rnd() * 0.25})`;
+    for (let j = 0; j < 6; j++) {
+      x.beginPath();
+      x.ellipse(cx + (rnd() - 0.5) * s * 2.2, cy + (rnd() - 0.5) * s * 0.3, s * (0.5 + rnd() * 0.6), s * (0.16 + rnd() * 0.12), 0, 0, Math.PI * 2);
+      x.fill();
+    }
+  }
+  const ridge = (base, amp, top, bottom, seed, snow) => {
+    const r = mulberry32(seed), ph = [r() * 6, r() * 6, r() * 6, r() * 6];
+    const pts = [];
+    for (let px = 0; px <= W; px += 6) {
+      const t = px / W;
+      const y = base - amp * (0.5 + 0.32 * Math.sin(t * 4.2 + ph[0]) + 0.16 * Math.sin(t * 11 + ph[1]) + 0.07 * Math.sin(t * 29 + ph[2]) + 0.03 * Math.sin(t * 71 + ph[3]));
+      pts.push([px, y]);
+    }
+    const grd = x.createLinearGradient(0, base - amp, 0, WL);
+    grd.addColorStop(0, top); grd.addColorStop(1, bottom);
+    x.fillStyle = grd;
+    x.beginPath(); x.moveTo(0, WL);
+    for (const [px, y] of pts) x.lineTo(px, y);
+    x.lineTo(W, WL); x.closePath(); x.fill();
+    if (snow) {
+      x.fillStyle = 'rgba(255,236,226,.75)';
+      x.beginPath();
+      for (let i = 0; i < pts.length; i++) {
+        const [px, y] = pts[i];
+        if (y < base - amp * 0.78) { x.moveTo(px - 6, y + 28); x.lineTo(px, y); x.lineTo(px + 6, y + 28); }
+      }
+      x.fill();
+    }
+  };
+  ridge(WL - 120, 330, '#9b8bb8', '#c79ba0', 21, true);
+  ridge(WL - 40, 240, '#6a6496', '#9a7f98', 34, false);
+  ridge(WL + 4, 150, '#3f5b74', '#55707e', 55, false);
+  // lake reflection
+  x.save(); x.translate(0, 2 * WL); x.scale(1, -1); x.globalAlpha = 0.6;
+  x.drawImage(c, 0, 0, W, WL, 0, 0, W, WL);
+  x.restore();
+  g = x.createLinearGradient(0, WL, 0, H);
+  g.addColorStop(0, 'rgba(30,60,90,.25)'); g.addColorStop(1, 'rgba(12,32,52,.8)');
+  x.fillStyle = g; x.fillRect(0, WL, W, H - WL);
+  for (let i = 0; i < 260; i++) {
+    const y = WL + 6 + Math.pow(rnd(), 1.4) * (H - WL), near = Math.abs(rnd() - 0.5) < 0.18;
+    const cx = near ? sx + (rnd() - 0.5) * 260 : rnd() * W;
+    x.fillStyle = near ? 'rgba(255,226,170,.55)' : 'rgba(220,230,255,.13)';
+    x.fillRect(cx, y, 20 + rnd() * 90 * (y / H), 2);
+  }
+  // sailboat
+  const bx = W * 0.47, by = WL + 70;
+  x.fillStyle = '#7a3b2a'; x.beginPath(); x.moveTo(bx - 50, by); x.lineTo(bx + 55, by); x.lineTo(bx + 38, by + 16); x.lineTo(bx - 36, by + 16); x.fill();
+  x.fillStyle = '#fbf3e4'; x.beginPath(); x.moveTo(bx, by - 4); x.lineTo(bx, by - 120); x.lineTo(bx + 46, by - 8); x.fill();
+  x.fillStyle = '#e8644a'; x.beginPath(); x.moveTo(bx - 4, by - 4); x.lineTo(bx - 4, by - 96); x.lineTo(bx - 40, by - 8); x.fill();
+  // left shore
+  g = x.createLinearGradient(0, WL - 60, 0, H);
+  g.addColorStop(0, '#3f6b37'); g.addColorStop(1, '#1b3a20');
+  x.fillStyle = g; x.beginPath(); x.moveTo(0, WL - 50);
+  x.quadraticCurveTo(W * 0.25, WL - 30, W * 0.4, WL + 14); x.quadraticCurveTo(W * 0.5, WL + 90, W * 0.56, H);
+  x.lineTo(0, H); x.closePath(); x.fill();
+  const pine = (px, base, h) => {
+    const w = h * 0.36;
+    x.fillStyle = '#4a2f22'; x.fillRect(px - 4, base - h * 0.12, 8, h * 0.14);
+    for (let k = 0; k < 4; k++) {
+      const ty = base - h * 0.1 - k * h * 0.22, tw = w * (1 - k * 0.2);
+      x.fillStyle = k % 2 ? '#1d4a2c' : '#163c24';
+      x.beginPath(); x.moveTo(px - tw, ty); x.lineTo(px, ty - h * 0.38); x.lineTo(px + tw, ty); x.fill();
+    }
+  };
+  for (let i = 0; i < 9; i++) pine(30 + i * 70 + rnd() * 30, WL - 40 + rnd() * 20, 180 + rnd() * 140);
+  // cabin
+  const hx = W * 0.2, hy = WL + 70;
+  x.fillStyle = '#8a4b2c'; x.fillRect(hx, hy - 90, 170, 90);
+  x.fillStyle = '#b5302a'; x.beginPath(); x.moveTo(hx - 20, hy - 88); x.lineTo(hx + 85, hy - 160); x.lineTo(hx + 190, hy - 88); x.fill();
+  x.fillStyle = '#ffd77a'; x.fillRect(hx + 22, hy - 62, 34, 28); x.fillRect(hx + 112, hy - 62, 34, 28);
+  x.fillStyle = '#4b2716'; x.fillRect(hx + 70, hy - 58, 28, 58);
+  x.fillStyle = '#6d6d6d'; x.fillRect(hx + 128, hy - 150, 18, 40);
+  for (let i = 0; i < 4; i++) pine(60 + i * 150 + rnd() * 40, H - 120 + rnd() * 80, 300 + rnd() * 180);
+  // meadow
+  g = x.createLinearGradient(0, H * 0.82, 0, H);
+  g.addColorStop(0, '#6c9a45'); g.addColorStop(1, '#3d6a2c');
+  x.fillStyle = g; x.beginPath(); x.moveTo(W * 0.5, H); x.quadraticCurveTo(W * 0.7, H * 0.82, W, H * 0.8); x.lineTo(W, H); x.fill();
+  const flowers = ['#f7d24a', '#f29bb6', '#ffffff', '#e8674a', '#b98be0'];
+  for (let i = 0; i < 520; i++) {
+    const fy = H * 0.84 + rnd() * H * 0.16, fx = W * 0.6 + rnd() * W * 0.4;
+    if (fy < H * 0.8 + (W - fx) / W * H * 0.2) continue;
+    x.fillStyle = flowers[i % flowers.length];
+    x.beginPath(); x.arc(fx, fy, 2.5 + rnd() * 4 * (fy / H), 0, Math.PI * 2); x.fill();
+  }
+  // birds
+  x.strokeStyle = 'rgba(40,40,70,.7)'; x.lineWidth = 3;
+  for (let i = 0; i < 5; i++) {
+    const bx2 = W * 0.3 + i * 70 + rnd() * 40, by2 = H * 0.16 + rnd() * 80, s = 12 + rnd() * 8;
+    x.beginPath(); x.moveTo(bx2 - s, by2 - s * 0.4); x.quadraticCurveTo(bx2 - s * 0.4, by2 - s * 0.6, bx2, by2);
+    x.quadraticCurveTo(bx2 + s * 0.4, by2 - s * 0.6, bx2 + s, by2 - s * 0.4); x.stroke();
+  }
+  return c;
+}
+
+/* ---------------- shared gallery ---------------- */
+// The gallery runs on one of two backends with the same shape:
+//  - claude.ai, when this page is published as an Artifact (db, assets and user capabilities)
+//  - the Go server in this repository, when the page is served by it (/api/...)
+// A backend has: me, canAdd, canModerate, canSaveProgress, photoUrl(id), names(ids),
+// watchPhotos(onItems, onError), watchProgress(onMap), upload(full, thumb, name), remove(item),
+// saveProgress(photoId, record), and optionally myName and logout().
+const G = {
+  backend: null, ready: false, failed: false, loginNeeded: false, items: [], busy: '',
+  progress: new Map(), pchain: Promise.resolve(), remoteOff: false, progressDone: null, progressReady: null,
+};
+G.progressReady = new Promise((r) => { G.progressDone = r; });
+const ASSET_ID = /^[0-9a-f]{32}$/;
+const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+function setSide(name) {
+  const gal = name === 'gallery';
+  E.piecesPane.hidden = gal;
+  E.galleryPane.hidden = !gal;
+  $('tabPieces').setAttribute('aria-selected', !gal);
+  $('tabGallery').setAttribute('aria-selected', gal);
+  store.set('pt.side', name);
+}
+$('tabPieces').onclick = () => setSide('pieces');
+$('tabGallery').onclick = () => setSide('gallery');
+if (store.get('pt.side') === 'gallery') setSide('gallery');
+
+const ago = (t) => {
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + ' min ago';
+  if (s < 86400) return Math.floor(s / 3600) + ' h ago';
+  const d = Math.floor(s / 86400);
+  if (d < 30) return d === 1 ? 'yesterday' : d + ' days ago';
+  return new Date(t).toLocaleDateString();
+};
+
+/* ---- claude.ai backend ---- */
+// Each person's photos live in one document, gallery/<their id>, as a list of asset ids.
+// Everyone reads every list; people write only their own, and editors can remove anyone's.
+async function claudeBackend() {
+  const [cdb, assets, user] = await Promise.all(['db', 'assets', 'user'].map((n) => window.claude.use(n).catch(() => null)));
+  if (!cdb) return null;
+  const uid = user ? await user.id() : null;
+  const mod = user ? await user.canEdit() : false;
+  let chain = Promise.resolve();
+  const writeList = (owner, fn) => {
+    const run = chain.catch(() => {}).then(async () => {
+      const ref = cdb.doc('gallery/' + owner);
+      const snap = await ref.get();
+      const cur = snap.exists && Array.isArray(snap.data().photos) ? snap.data().photos.slice() : [];
+      await ref.set({ photos: fn(cur) });
+    });
+    chain = run;
+    return run;
+  };
+  const up = async (blob) => {
+    try { return await assets.upload(blob, { type: blob.type }); }
+    catch (e) {
+      if (!e || e.code !== 'store_unavailable') throw e;
+      await new Promise((r) => setTimeout(r, 1200));
+      return assets.upload(blob, { type: blob.type });
+    }
+  };
+  return {
+    me: uid, canAdd: !!(assets && uid), canModerate: mod, canSaveProgress: !!uid,
+    joinHint: 'To add your own, ask the owner for Contributor access.',
+    photoUrl: (id) => '/_blob/' + id,
+    async names(ids) {
+      if (!user || !ids.length) return {};
+      const ps = await user.profiles(ids);
+      const out = {};
+      for (const id of ids) out[id] = (ps[id] && ps[id].name) || '';
+      return out;
+    },
+    watchPhotos(onItems, onError) {
+      cdb.collection('gallery').onSnapshot((snap) => {
+        const items = [];
+        for (const d of snap.docs) {
+          const photos = d.exists && d.data().photos;
+          if (Array.isArray(photos)) for (const p of photos) if (p) items.push({ ...p, by: d.id });
+        }
+        onItems(items);
+      }, onError);
+    },
+    watchProgress(onMap) {
+      if (!uid) { onMap(null); return; }
+      cdb.collection('data/users/' + uid).onSnapshot((snap) => {
+        const m = new Map();
+        for (const d of snap.docs) if (d.exists && d.id.startsWith('p-')) m.set(d.id.slice(2), d.data());
+        onMap(m);
+      }, () => onMap(null));
+    },
+    async upload(full, thumb, name) {
+      const a = await up(full);
+      const t = await up(thumb);
+      const entry = { asset: a.id, thumb: t.id, name, at: Date.now() };
+      await writeList(uid, (list) => [entry, ...list]);
+      return entry;
+    },
+    async remove(it) {
+      await writeList(it.by, (list) => list.filter((p) => !p || p.asset !== it.asset));
+      if (assets) for (const id of [it.asset, it.thumb]) if (ASSET_ID.test(id || '')) assets.delete(id).catch(() => {});
+    },
+    saveProgress(photoId, rec) {
+      return cdb.collection('data/users/' + uid).doc('p-' + photoId).set(rec).catch((e) => {
+        if (e && (e.code === 'invalid_argument' || e.code === 'revoked')) e.code = 'forbidden';
+        throw e;
+      });
+    },
+  };
+}
+
+/* ---- Go server backend ---- */
+async function api(path, opts = {}) {
+  let res;
+  try {
+    res = await fetch(path, { credentials: 'same-origin', ...opts, headers: { 'X-Puzzle': '1', ...(opts.headers || {}) } });
+  } catch {
+    throw { code: 'offline', message: 'The puzzle server could not be reached.' };
+  }
+  const json = (res.headers.get('content-type') || '').includes('application/json');
+  const body = json ? await res.json().catch(() => null) : null;
+  if (!res.ok) {
+    const code = (body && body.code) || (res.status === 401 ? 'unauthorized' : res.status === 413 ? 'too_large' : 'upstream_error');
+    throw { code, status: res.status, message: (body && body.error) || res.statusText };
+  }
+  return body || {};
+}
+function serverBackend(me) {
+  let refresh = () => {};
+  const onVisible = (fn) => document.addEventListener('visibilitychange', () => { if (!document.hidden) fn(); });
+  return {
+    me: me.id, myName: me.name, canAdd: true, canModerate: !!me.admin, canSaveProgress: true, joinHint: '',
+    photoUrl: (id) => 'photos/' + id,
+    async names() { return {}; },
+    watchPhotos(onItems, onError) {
+      refresh = () => api('api/photos')
+        .then((b) => onItems((b.photos || []).map((p) => ({ asset: p.id, thumb: p.thumb, name: p.name, at: p.at, by: p.by, byName: p.byName }))))
+        .catch(onError);
+      refresh();
+      setInterval(() => { if (!document.hidden) refresh(); }, 15000);
+      onVisible(refresh);
+    },
+    watchProgress(onMap) {
+      const load = () => api('api/progress')
+        .then((b) => onMap(new Map(Object.entries(b.progress || {}))))
+        .catch(() => onMap(null));
+      load();
+      onVisible(load);
+    },
+    async upload(full, thumb, name) {
+      const fd = new FormData();
+      fd.append('name', name);
+      fd.append('photo', full, 'photo');
+      fd.append('thumb', thumb, 'thumb.jpg');
+      const p = await api('api/photos', { method: 'POST', body: fd });
+      refresh();
+      return { asset: p.id, thumb: p.thumb, name: p.name, at: p.at };
+    },
+    async remove(it) {
+      await api('api/photos/' + it.asset, { method: 'DELETE' });
+      refresh();
+    },
+    saveProgress(photoId, rec) {
+      return api('api/progress/' + photoId, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec),
+      });
+    },
+    async logout() {
+      await api('api/logout', { method: 'POST' }).catch(() => {});
+      location.reload();
+    },
+  };
+}
+// Returns a backend when this page is served by the Go server and the visitor is signed in.
+async function serverSession() {
+  let res;
+  try { res = await fetch('api/me', { credentials: 'same-origin' }); } catch { return null; }
+  if (res.headers.get('X-Puzzle-Server') !== '1') return null;
+  if (res.status === 401) { G.loginNeeded = true; showLogin(); return null; }
+  if (!res.ok) return null;
+  return serverBackend(await res.json());
+}
+
+function showLogin() {
+  E.login.hidden = false;
+  try { E.loginName.value = E.loginName.value || store.get('pt.name') || ''; } catch {}
+  (E.loginName.value ? E.loginPass : E.loginName).focus();
+}
+E.loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  E.loginError.hidden = true;
+  E.loginSubmit.disabled = true;
+  try {
+    const me = await api('api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: E.loginName.value, passcode: E.loginPass.value }),
+    });
+    store.set('pt.name', E.loginName.value.trim());
+    E.loginPass.value = '';
+    E.login.hidden = true;
+    G.loginNeeded = false;
+    startGallery(serverBackend(me));
+    showToast(`Welcome, ${me.name}.`, [], 2500);
+  } catch (err) {
+    E.loginError.textContent = err.status === 429 ? 'Too many tries. Wait a few minutes, then try again.'
+      : err.code === 'bad_passcode' ? 'That passcode is not right.'
+      : err.message || 'Sign-in did not work. Try again.';
+    E.loginError.hidden = false;
+  } finally {
+    E.loginSubmit.disabled = false;
+  }
+});
+$('loginSkip').onclick = () => { E.login.hidden = true; };
+$('signOut').onclick = () => G.backend && G.backend.logout && G.backend.logout();
+
+async function initGallery() {
+  renderGallery();
+  let backend = null;
+  try {
+    backend = window.claude && window.claude.use ? await claudeBackend() : await serverSession();
+  } catch { backend = null; }
+  startGallery(backend);
+}
+function startGallery(backend) {
+  G.backend = backend;
+  if (!backend) {
+    G.ready = true;
+    G.failed = !G.loginNeeded;
+    G.progressDone();
+    renderGallery();
+    return;
+  }
+  G.ready = false;
+  G.failed = false;
+  renderGallery();
+  backend.watchPhotos((items) => {
+    G.items = items
+      .filter((p) => p && ASSET_ID.test(p.asset))
+      .sort((a, b) => (b.at || 0) - (a.at || 0));
+    G.ready = true;
+    G.failed = false;
+    renderGallery();
+  }, () => { G.ready = true; G.failed = !G.items.length; renderGallery(); });
+  backend.watchProgress((map) => {
+    if (map) { G.progress = map; renderGallery(); }
+    G.progressDone();
+  });
+}
+
+let gallerySeq = 0;
+async function renderGallery() {
+  const seq = ++gallerySeq;
+  const be = G.backend;
+  const ids = [...new Set(G.items.map((i) => i.by))];
+  const names = be && ids.length ? await be.names(ids) : {};
+  if (seq !== gallerySeq) return;
+  const canAdd = !!(be && be.canAdd);
+  E.galleryCount.textContent = G.items.length || '';
+  E.galleryGrid.textContent = '';
+  for (const it of G.items) {
+    const name = String(it.name || 'Untitled photo');
+    const card = document.createElement('div');
+    card.className = 'g-card' + (source && source.asset === it.asset ? ' current' : '');
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'g-item'; btn.title = `Make a puzzle from ${name}`;
+    const img = document.createElement('img');
+    img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
+    img.onerror = () => btn.classList.add('broken');
+    img.src = be.photoUrl(ASSET_ID.test(it.thumb || '') ? it.thumb : it.asset);
+    const meta = document.createElement('span'); meta.className = 'g-meta';
+    const b = document.createElement('b'); b.textContent = name;
+    const who = it.by === be.me ? 'You' : names[it.by] || String(it.byName || '') || 'Someone';
+    const sm = document.createElement('small'); sm.textContent = `${who} · ${ago(it.at || 0)}`;
+    const thumb = document.createElement('span'); thumb.className = 'g-thumb'; thumb.appendChild(img);
+    meta.append(b, sm);
+    const s = progressFor(it.asset);
+    const solved = s && (s.done ? { count: s.total, ms: s.ms } : s.completed);
+    if (solved) {
+      const badge = document.createElement('span'); badge.className = 'g-badge'; badge.textContent = '✓ Solved';
+      thumb.appendChild(badge);
+    }
+    if (s && s.started && !s.done) {
+      const pr = document.createElement('span'); pr.className = 'g-prog';
+      const bar = document.createElement('i'), fill = document.createElement('span');
+      fill.style.width = Math.min(100, s.placed / s.total * 100).toFixed(1) + '%';
+      bar.appendChild(fill);
+      const t = document.createElement('span'); t.textContent = `${s.placed}/${s.total}`;
+      pr.append(bar, t); meta.appendChild(pr);
+      btn.title = `Resume ${name}: ${s.placed} of ${s.total} pieces placed`;
+    } else if (solved) {
+      const pr = document.createElement('span'); pr.className = 'g-prog done';
+      pr.textContent = `${Number(solved.count) || '?'} pieces · ${fmtTime(Number(solved.ms) || 0)}`;
+      meta.appendChild(pr);
+    }
+    btn.append(thumb, meta);
+    btn.onclick = () => playGallery(it);
+    card.appendChild(btn);
+    if (it.by === be.me || be.canModerate) {
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'g-del'; del.textContent = '×';
+      del.setAttribute('aria-label', `Remove ${name} from the gallery`);
+      del.onclick = (e) => { e.stopPropagation(); removeFromGallery(it); };
+      card.appendChild(del);
+    }
+    E.galleryGrid.appendChild(card);
+  }
+  const empty = !G.items.length;
+  E.galleryGrid.hidden = empty;
+  E.galleryEmpty.hidden = !empty;
+  E.galleryEmpty.textContent = G.loginNeeded && !be ? 'Sign in to see the family gallery and keep your progress on every device.'
+    : !G.ready ? 'Loading the gallery…'
+    : G.failed && be ? 'The gallery could not be loaded. Reload the page to try again.'
+    : G.failed ? 'The shared gallery is not available here. Puzzles still work and save on this device.'
+    : canAdd ? 'No photos yet. Choose a photo and it is added here for everyone.'
+    : 'No photos yet.';
+  if (G.loginNeeded && !be) {
+    const sign = document.createElement('button');
+    sign.type = 'button'; sign.className = 'btn primary'; sign.textContent = 'Sign in';
+    sign.style.marginTop = '12px';
+    sign.onclick = showLogin;
+    E.galleryEmpty.append(document.createElement('br'), sign);
+  }
+  E.galleryStatus.textContent = G.busy || (!G.ready || !be ? ''
+    : canAdd ? 'Photos you choose are added here automatically. Tap one to puzzle it.'
+    : `Tap a photo to puzzle it. ${be.joinHint}`.trim());
+  E.galleryStatus.hidden = !E.galleryStatus.textContent;
+  E.galleryAccount.hidden = !(be && be.myName);
+  if (be && be.myName) E.accountName.textContent = `Signed in as ${be.myName}.`;
+}
+
+function loadSrc(src) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = () => rej(new Error('unreadable'));
+    img.src = src;
+  });
+}
+function scaledBlob(img, max, q) {
+  const w = img.naturalWidth, h = img.naturalHeight, k = Math.min(1, max / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej({ code: 'invalid_request' })), 'image/jpeg', q));
+}
+const uploadError = (e) => ({
+  too_large: 'That photo is over the 20 MB gallery limit. You can still play it here.',
+  unsupported_type: 'The gallery takes JPG, PNG, WebP and GIF photos. You can still play this one here.',
+  quota_or_state: 'The gallery is full. Remove some photos to make room.',
+  quota_exceeded: 'The gallery is full. Remove some photos to make room.',
+  rate_limited: 'Too many uploads at once. Wait a moment, then choose the photo again.',
+  unauthorized: 'You were signed out. Reload the page and sign in to add photos.',
+  offline: 'The puzzle server could not be reached, so the photo was not added. You can still play it here.',
+}[e && e.code] || 'The photo could not be added to the gallery. You can still play it here.');
+
+async function shareToGallery(file, img) {
+  const be = G.backend;
+  if (!be || !be.canAdd) return;
+  const src = source;
+  G.busy = `Adding “${file.name}” to the gallery…`;
+  renderGallery();
+  try {
+    const keep = UPLOAD_TYPES.includes(file.type) && file.size <= 6e6 && Math.max(img.naturalWidth, img.naturalHeight) <= 4000;
+    const full = keep ? file : await scaledBlob(img, 3200, 0.9);
+    const thumb = await scaledBlob(img, 520, 0.82);
+    const entry = await be.upload(full, thumb, file.name.slice(0, 120));
+    if (source === src) {
+      source.asset = entry.asset;
+      db.set('image', { blob: file, name: file.name, asset: entry.asset, src: be.photoUrl(entry.asset) });
+      saveNow(true);
+    }
+    showToast(`Added “${file.name}” to the shared gallery.`, [], 3500);
+  } catch (e) {
+    showToast(uploadError(e), [], 6000);
+  } finally {
+    G.busy = '';
+    renderGallery();
+  }
+}
+
+async function playGallery(it) {
+  const name = String(it.name || 'Gallery photo');
+  if (source && source.asset === it.asset && S && !S.done) { setSide('pieces'); return; }
+  saveNow();
+  flushRemote();
+  showToast(`Opening “${name}”…`);
+  const url = G.backend.photoUrl(it.asset);
+  let img;
+  try { img = await loadSrc(url); }
+  catch {
+    showToast(`“${name}” could not be opened. Reload the page and try again.`, [], 7000);
+    return;
+  }
+  hideToast();
+  if (source && source.url) URL.revokeObjectURL(source.url);
+  source = { img, w: img.naturalWidth, h: img.naturalHeight, name, url: null, asset: it.asset };
+  E.photoName.textContent = name;
+  db.set('image', { name, asset: it.asset, src: url });
+  setSide('pieces');
+  const saved = freshest(await db.get('state:' + it.asset), G.progress.get(it.asset));
+  const resume = saved && saved.v === 1 && !saved.done && COUNTS.includes(saved.count) ? saved : null;
+  if (resume) { count = resume.count; store.set('pt.count', String(count)); }
+  refreshCountOptions();
+  renderGallery();
+  const resumed = await build(resume);
+  if (resumed) showToast(`Picked up “${name}” where you left off.`, [], 3000);
+}
+
+async function removeFromGallery(it) {
+  const name = String(it.name || 'this photo');
+  const others = it.by !== G.backend.me ? ' Someone else added it.' : '';
+  if (!(await ask('Remove this photo?', `“${name}” will be removed from the gallery for everyone.${others}`, 'Remove photo'))) return;
+  try {
+    await G.backend.remove(it);
+  } catch (e) {
+    showToast(e && e.code === 'forbidden' ? 'Only the person who added a photo can remove it.'
+      : 'The photo could not be removed. Try again in a moment.', [], 5000);
+    return;
+  }
+  showToast(`Removed “${name}” from the gallery.`, [], 3000);
+}
+
+setInterval(() => { if (S && !S.building && !S.done) saveNow(); }, 10000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+window.addEventListener('pagehide', () => { saveNow(); flushRemote(); });
+
+function loadBlob(blob) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.onload = () => res({ img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('unreadable')); };
+    img.src = url;
+  });
+}
+
+async function init() {
+  feltNoise();
+  const f = store.get('pt.filter');
+  if (['all', 'edge', 'middle'].includes(f)) setFilter(f);
+  E.loading.hidden = false;
+  E.loadingText.textContent = 'Opening your puzzle…';
+  const [legacy, rec, sums] = await Promise.all([db.get('state'), db.get('image'), db.get('summaries')]);
+  if (sums && typeof sums === 'object') for (const [k, v] of Object.entries(sums)) localSummaries.set(k, v);
+  if (rec && (rec.blob || rec.asset)) {
+    try {
+      let img, url = null;
+      if (rec.blob) ({ img, url } = await loadBlob(rec.blob));
+      else img = await loadSrc(rec.src || '/_blob/' + rec.asset);
+      source = { img, w: img.naturalWidth, h: img.naturalHeight, name: rec.name, url, asset: rec.asset || null };
+      E.photoName.textContent = rec.name;
+    } catch {}
+  }
+  if (!source) {
+    const sample = makeSample();
+    source = { img: sample, w: sample.width, h: sample.height, name: 'Sample: Lake at dawn', url: null };
+    E.photoName.textContent = 'Sample: Lake at dawn · choose your own photo';
+  }
+  const key = source.asset || source.name;
+  let state = (await db.get('state:' + key)) || (legacy && legacy.photo === key ? legacy : null);
+  if (source.asset) {
+    const remote = await Promise.race([G.progressReady.then(() => G.progress.get(source.asset)), new Promise((r) => setTimeout(r, 4000))]);
+    state = freshest(state, remote);
+  }
+  const usable = state && state.v === 1 && state.photo === key && COUNTS.includes(state.count);
+  if (usable) count = state.count;
+  refreshCountOptions();
+  const resumed = await build(usable ? state : null);
+  if (resumed && !S.done && S.pieces.some((p) => p.where === 'board')) {
+    showToast('Welcome back. Your puzzle is just as you left it.', [], 3500);
+  }
+}
+init();
+initGallery();
+})();
+</script>
+
+</body>
+</html>

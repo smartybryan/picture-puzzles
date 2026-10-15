@@ -1,0 +1,19 @@
+{
+  "name": "Puzzle Table",
+  "short_name": "Puzzles",
+  "description": "Turn family photos into jigsaw puzzles, share them in a family gallery, and pick up your progress on any device.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#E3E8E5",
+  "theme_color": "#2D5852",
+  "categories": ["games", "entertainment", "photo"],
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "/favicon.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}
