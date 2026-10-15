@@ -1,0 +1,24 @@
+[Unit]
+Description=Puzzle Table
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=puzzle
+Group=puzzle
+EnvironmentFile=/etc/puzzle-table.env
+ExecStart=/opt/puzzle-table/puzzle-table
+WorkingDirectory=/var/lib/puzzle-table
+Restart=on-failure
+RestartSec=3
+
+# Hardening: the service can only write to its data directory.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/puzzle-table
+
+[Install]
+WantedBy=multi-user.target

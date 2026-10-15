@@ -317,6 +317,26 @@ func TestStoreSurvivesRestart(t *testing.T) {
 	}
 }
 
+func TestClientIP(t *testing.T) {
+	for _, tc := range []struct{ remote, fwd, want string }{
+		{"203.0.113.9:5000", "", "203.0.113.9"},
+		{"203.0.113.9:5000", "198.51.100.1", "203.0.113.9"}, // not from a local proxy: header ignored
+		{"127.0.0.1:5000", "198.51.100.1", "198.51.100.1"},
+		{"127.0.0.1:5000", "10.0.0.1, 198.51.100.1", "198.51.100.1"},
+		{"[::1]:5000", "198.51.100.2", "198.51.100.2"},
+		{"127.0.0.1:5000", "", "127.0.0.1"},
+	} {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.RemoteAddr = tc.remote
+		if tc.fwd != "" {
+			r.Header.Set("X-Forwarded-For", tc.fwd)
+		}
+		if got := clientIP(r); got != tc.want {
+			t.Errorf("clientIP(%s, %q) = %s, want %s", tc.remote, tc.fwd, got, tc.want)
+		}
+	}
+}
+
 func TestNormalizeName(t *testing.T) {
 	for _, tc := range []struct {
 		in, id, display string

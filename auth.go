@@ -137,10 +137,22 @@ func recent(ts []time.Time) []time.Time {
 	return out
 }
 
+// clientIP is the visitor's address. Behind a reverse proxy on the same
+// machine every request arrives from loopback, so the proxy's
+// X-Forwarded-For is used instead; its last entry is the one the proxy added.
+// The header is ignored from anyone else, who could set it to anything.
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			parts := strings.Split(fwd, ",")
+			if last := strings.TrimSpace(parts[len(parts)-1]); last != "" {
+				return last
+			}
+		}
 	}
 	return host
 }
