@@ -15,7 +15,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
 <style>
 /* Layout: one-screen workbench. Toolbar strip on top; a felt puzzle board fills the left;
-   the piece tray (the open puzzle box) docks right, and moves to the bottom on phones. */
+   the piece tray (the open puzzle box) docks right, and moves to the bottom on phones.
+   On touch screens and phones the toolbar folds into a menu button over the board. */
 :root {
   --bg: #E3E8E5;
   --surface: #F7F9F8;
@@ -105,8 +106,14 @@ body {
 
 /* ---------- main split ---------- */
 .main {
-  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; min-height: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--tray-w, 300px); min-height: 0;
 }
+/* drag handle between the board and the tray; snaps the tray to 1-3 columns of pieces */
+.splitter { position: relative; z-index: 1; display: grid; place-items: center; cursor: col-resize; touch-action: none; }
+.splitter::before { content: ""; position: absolute; inset: 0 -8px; }
+.splitter i { width: 4px; height: 44px; border-radius: 2px; background: var(--line); transition: background .15s; }
+.splitter:hover i, .splitter.active i, .splitter:focus-visible i { background: var(--accent); }
+.splitter:focus-visible { outline: none; }
 .board-wrap { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius); overflow: hidden; }
 .board {
   position: absolute; inset: 0; overflow: auto; display: flex;
@@ -246,6 +253,32 @@ body {
 .tray-empty { padding: 24px 16px; color: var(--muted); text-align: center; width: 100%; }
 .tray-foot { padding: 8px 12px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
 .side-tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); flex: none; }
+.tray-top { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); flex: none; min-width: 0; }
+.tray-top .side-tabs { flex: 1; border-bottom: 0; }
+.tray-count {
+  display: none; flex: 1; min-width: 0; align-self: center; padding-left: 10px;
+  font: 600 14px var(--font-display); font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.icon-btn {
+  position: relative; width: 42px; flex: none; border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  display: grid; place-items: center;
+}
+.icon-btn:hover, .icon-btn[aria-expanded="true"] { color: var(--ink); }
+.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.icon-btn svg { width: 20px; height: 20px; }
+.icon-btn.flag::after {
+  content: ""; position: absolute; top: 8px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+}
+.popover {
+  position: fixed; z-index: 75; width: 260px; max-width: calc(100vw - 24px);
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px; display: grid; gap: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.28);
+}
+.pop-sec { display: grid; gap: 6px; }
+.pop-h { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.seg.two { grid-template-columns: repeat(2, 1fr); }
+.popover .btn { justify-content: center; }
 .side-tabs button {
   height: 42px; border: 0; border-bottom: 2px solid transparent; background: transparent; cursor: pointer;
   color: var(--muted); font: 600 14px var(--font-display); display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -311,6 +344,15 @@ body {
 .drop-zone div { border: 2px dashed currentColor; border-radius: 18px; padding: 28px 36px; text-align: center; }
 .drop-zone small { display: block; font: 400 14px var(--font-body); opacity: .8; margin-top: 6px; }
 .modal { position: fixed; z-index: 90; }
+.menu-btn { display: none; }
+
+/* a tray 1-2 columns wide tucks its tabs and filter into the options menu */
+@media (min-width: 761px) {
+  .tray.narrow .side-tabs, .tray.narrow .tray-head, .tray.narrow .tray-foot { display: none; }
+  .tray.narrow .tray-count { display: block; }
+  .tray.narrow .tray-empty { padding: 16px 8px; font-size: 12px; }
+  .tray.narrow .gallery-grid { grid-template-columns: minmax(0, 1fr); padding: 8px; }
+}
 
 @media (max-width: 760px) {
   .app { gap: 8px; padding-block: 8px; }
@@ -320,9 +362,8 @@ body {
   .btn .lbl-long, .btn kbd { display: none; }
   .btn, .select { height: 34px; padding: 0 10px; }
   .progress { min-width: 96px; }
-  .main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 210px; gap: 8px; }
-  .tray-head { padding: 8px; gap: 6px; }
-  .tray-title { display: none; }
+  .main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) calc(2 * var(--tp) + 32px); gap: 8px; }
+  .splitter, .tray-head { display: none; }
   .tray-list {
     display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, calc(var(--tp) - 8px));
     grid-auto-columns: calc(var(--tp) - 8px); overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
@@ -338,14 +379,39 @@ body {
   .gallery-status { display: none; }
   .stats b { font-size: 15px; }
 }
+@media (pointer: coarse), (max-width: 760px) {
+  .app { grid-template-rows: minmax(0, 1fr); }
+  .bar {
+    position: fixed; z-index: 70; width: min(320px, calc(100vw - 24px)); overflow-y: auto;
+    flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 14px; padding: 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.28);
+  }
+  .app:not(.menu-open) .bar { display: none; }
+  .bar .spacer, .btn kbd { display: none; }
+  .brand { flex-direction: column; align-items: start; gap: 4px; }
+  .brand h1 { font-size: 20px; }
+  .photo-name { max-width: 100%; }
+  .bar .group { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+  .bar .btn, .bar .select { width: 100%; height: 42px; justify-content: center; }
+  .btn .lbl-long { display: inline; }
+  .progress { flex: 1; }
+  .menu-btn {
+    position: absolute; left: 10px; top: 10px; z-index: 7; display: flex; align-items: center; gap: 8px;
+    height: 42px; padding: 0 12px 0 10px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,.18); cursor: pointer;
+    font: 500 12px var(--font-mono); font-variant-numeric: tabular-nums;
+  }
+  .menu-btn svg { width: 20px; height: 20px; }
+  .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .piece.hinted, .tray-list .piece.hinted, .hint-target, .world .piece.snap { animation: none; }
   .world .piece.glide, .meter i { transition: none; }
 }
 </style>
 
-<div class="app">
-  <header class="bar">
+<div class="app" id="app">
+  <header class="bar" id="bar">
     <div class="brand">
       <h1>Puzzle<span>·</span>Table</h1>
       <span class="photo-name" id="photoName" title="Your photos stay on this device. Nothing is uploaded.">Sample picture</span>
@@ -382,7 +448,7 @@ body {
     </div>
   </header>
 
-  <main class="main">
+  <main class="main" id="main">
     <section class="board-wrap" aria-label="Puzzle board">
       <div class="board" id="board">
         <div class="sizer" id="sizer">
@@ -392,6 +458,10 @@ body {
           </div>
         </div>
       </div>
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Menu" aria-expanded="false" aria-controls="bar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <span id="menuProg"></span>
+      </button>
       <div class="zoom" aria-label="Zoom">
         <button type="button" id="zoomOut" aria-label="Zoom out">−</button>
         <output id="zoomLabel">100%</output>
@@ -426,10 +496,19 @@ body {
       </div>
     </section>
 
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Tray width in columns"
+         aria-valuemin="1" aria-valuemax="3" aria-valuenow="3" tabindex="0" title="Drag to resize the tray"><i></i></div>
+
     <aside class="tray" id="tray" aria-label="Pieces and gallery">
-      <div class="side-tabs" role="tablist">
-        <button type="button" role="tab" id="tabPieces" aria-selected="true">Pieces <b id="cntTab">0</b></button>
-        <button type="button" role="tab" id="tabGallery" aria-selected="false">Gallery <b id="galleryCount"></b></button>
+      <div class="tray-top">
+        <div class="side-tabs" role="tablist">
+          <button type="button" role="tab" id="tabPieces" aria-selected="true">Pieces <b data-cnt="all">0</b></button>
+          <button type="button" role="tab" id="tabGallery" aria-selected="false">Gallery <b id="galleryCount"></b></button>
+        </div>
+        <span class="tray-count" id="trayCount" title="Pieces in the tray"></span>
+        <button type="button" class="icon-btn" id="trayMenuBtn" aria-label="Tray options" aria-haspopup="true" aria-expanded="false" aria-controls="trayMenu">
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
       </div>
       <div class="pane" id="piecesPane">
       <div class="tray-head">
@@ -438,9 +517,9 @@ body {
           <button class="linkish" type="button" id="shuffleBtn">Shuffle</button>
         </div>
         <div class="seg" role="group" aria-label="Show pieces">
-          <button type="button" data-filter="all" aria-pressed="true">All <b id="cntAll">0</b></button>
-          <button type="button" data-filter="edge" aria-pressed="false">Edges <b id="cntEdge">0</b></button>
-          <button type="button" data-filter="middle" aria-pressed="false">Middle <b id="cntMid">0</b></button>
+          <button type="button" data-filter="all" aria-pressed="true">All <b data-cnt="all">0</b></button>
+          <button type="button" data-filter="edge" aria-pressed="false">Edges <b data-cnt="edge">0</b></button>
+          <button type="button" data-filter="middle" aria-pressed="false">Middle <b data-cnt="middle">0</b></button>
         </div>
       </div>
       <div class="tray-list" id="trayList" data-filter="all"></div>
@@ -461,6 +540,32 @@ body {
 </div>
 
 <div class="drag-layer" id="dragLayer"></div>
+<div class="popover" id="trayMenu" role="dialog" aria-label="Tray options" hidden>
+  <div class="pop-sec">
+    <span class="pop-h">View</span>
+    <div class="seg two" role="group" aria-label="View">
+      <button type="button" data-side="pieces" aria-pressed="true">Pieces</button>
+      <button type="button" data-side="gallery" aria-pressed="false">Gallery</button>
+    </div>
+  </div>
+  <div class="pop-sec">
+    <span class="pop-h">Show in tray</span>
+    <div class="seg" role="group" aria-label="Show pieces">
+      <button type="button" data-filter="all" aria-pressed="true">All <b data-cnt="all">0</b></button>
+      <button type="button" data-filter="edge" aria-pressed="false">Edges <b data-cnt="edge">0</b></button>
+      <button type="button" data-filter="middle" aria-pressed="false">Middle <b data-cnt="middle">0</b></button>
+    </div>
+  </div>
+  <div class="pop-sec">
+    <span class="pop-h">Piece size</span>
+    <div class="seg" role="group" aria-label="Piece size">
+      <button type="button" data-size="1" aria-pressed="true">Normal</button>
+      <button type="button" data-size="1.25" aria-pressed="false">Large</button>
+      <button type="button" data-size="1.5" aria-pressed="false">Larger</button>
+    </div>
+  </div>
+  <button class="btn" type="button" id="menuShuffle">Shuffle the tray</button>
+</div>
 <div class="drop-zone" id="dropZone" hidden><div>Drop your photo to make a puzzle<small>It stays on this device</small></div></div>
 <div class="overlay modal" id="login" hidden>
   <form class="card" id="loginForm" aria-labelledby="loginTitle">
@@ -513,14 +618,15 @@ const E = {
   hintTarget: $('hintTarget'), tray: $('tray'), trayList: $('trayList'), trayEmpty: $('trayEmpty'), dragLayer: $('dragLayer'),
   countSelect: $('countSelect'), fileInput: $('fileInput'), photoName: $('photoName'),
   placedNum: $('placedNum'), totalNum: $('totalNum'), meter: $('meter'), timer: $('timer'),
-  cntAll: $('cntAll'), cntEdge: $('cntEdge'), cntMid: $('cntMid'),
+  app: $('app'), bar: $('bar'), main: $('main'), splitter: $('splitter'), menuBtn: $('menuBtn'), menuProg: $('menuProg'),
+  trayMenu: $('trayMenu'), trayMenuBtn: $('trayMenuBtn'), trayCount: $('trayCount'),
   toast: $('toast'), toastText: $('toastText'), toastActions: $('toastActions'),
   pictureOverlay: $('pictureOverlay'), pictureImg: $('pictureImg'), pictureBtn: $('pictureBtn'),
   guideBtn: $('guideBtn'), loading: $('loading'), loadingText: $('loadingText'),
   piecesPane: $('piecesPane'), galleryPane: $('galleryPane'), galleryGrid: $('galleryGrid'), galleryEmpty: $('galleryEmpty'),
   galleryStatus: $('galleryStatus'), galleryAccount: $('galleryAccount'), accountName: $('accountName'),
   login: $('login'), loginForm: $('loginForm'), loginName: $('loginName'), loginPass: $('loginPass'),
-  loginError: $('loginError'), loginSubmit: $('loginSubmit'), galleryCount: $('galleryCount'), cntTab: $('cntTab'),
+  loginError: $('loginError'), loginSubmit: $('loginSubmit'), galleryCount: $('galleryCount'),
   finish: $('finish'), zoomLabel: $('zoomLabel'), dropZone: $('dropZone'), confirm: $('confirm'),
 };
 
@@ -763,7 +869,7 @@ async function build(restore = null) {
   E.ghost.src = previewURL;
   Object.assign(E.world.style, { width: S.worldW + 'px', height: S.worldH + 'px' });
   Object.assign(E.frame.style, { left: mg + 'px', top: mg + 'px', width: W + 'px', height: H + 'px' });
-  document.documentElement.style.setProperty('--tp', N >= 550 ? '76px' : '88px');
+  applyTraySize();
   fitZoom();
 
   E.loading.hidden = false;
@@ -1149,23 +1255,131 @@ $('zoomOut').onclick = () => setZoom(zoom / 1.3);
 $('zoomFit').onclick = () => S && fitZoom();
 
 /* ---------------- tray filter ---------------- */
-document.querySelectorAll('.seg button').forEach((btn) => {
+document.querySelectorAll('button[data-filter]').forEach((btn) => {
   btn.onclick = () => setFilter(btn.dataset.filter);
 });
 function setFilter(f) {
   filter = f;
   E.trayList.dataset.filter = f;
   store.set('pt.filter', f);
-  document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.filter === f));
+  document.querySelectorAll('button[data-filter]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.filter === f));
+  E.trayMenuBtn.classList.toggle('flag', f !== 'all');
   E.trayList.scrollTop = 0; E.trayList.scrollLeft = 0;
   if (S) updateStatus();
 }
-$('shuffleBtn').onclick = () => {
+function shuffleTray() {
   if (!S || S.building) return;
   shuffled(S.trayOrder);
   renderTray();
   scheduleSave();
-};
+}
+$('shuffleBtn').onclick = shuffleTray;
+
+/* ---------------- tray size & options ---------------- */
+// The tray is 1 to 3 columns of pieces wide (drag the splitter); piece size scales the pieces in the tray.
+const SIZES = [1, 1.25, 1.5];
+let trayCols = Math.max(1, Math.min(3, Math.round(+store.get('pt.trayCols') || 3)));
+let pieceScale = SIZES.includes(+store.get('pt.pieceScale')) ? +store.get('pt.pieceScale') : 1;
+const scrollbarW = (() => {
+  const d = document.createElement('div');
+  d.style.cssText = 'position:absolute;top:-200px;width:100px;height:100px;overflow:scroll';
+  document.body.appendChild(d);
+  const w = d.offsetWidth - d.clientWidth;
+  d.remove();
+  return w;
+})();
+function trayPieceSize() { return Math.round((S && S.N >= 550 ? 76 : 88) * pieceScale); }
+// Pieces overlap by 8px in the tray; 16px covers the list padding, tray border and a little slack.
+function trayWidth(cols) {
+  const w = cols * (trayPieceSize() - 8) + 16 + scrollbarW;
+  return cols === 3 ? Math.max(300, w) : w;
+}
+function applyTraySize() {
+  document.documentElement.style.setProperty('--tp', trayPieceSize() + 'px');
+  E.main.style.setProperty('--tray-w', trayWidth(trayCols) + 'px');
+  E.tray.classList.toggle('narrow', trayCols < 3);
+  E.splitter.setAttribute('aria-valuenow', trayCols);
+  document.querySelectorAll('button[data-size]').forEach((b) => b.setAttribute('aria-pressed', +b.dataset.size === pieceScale));
+}
+function setTrayCols(c) {
+  c = Math.max(1, Math.min(3, c));
+  if (c === trayCols) return;
+  trayCols = c;
+  store.set('pt.trayCols', c);
+  applyTraySize();
+}
+E.splitter.addEventListener('pointerdown', (e) => {
+  if (e.button > 0) return;
+  e.preventDefault();
+  E.splitter.setPointerCapture(e.pointerId);
+  E.splitter.classList.add('active');
+});
+E.splitter.addEventListener('pointermove', (e) => {
+  if (!E.splitter.hasPointerCapture(e.pointerId)) return;
+  const want = E.main.getBoundingClientRect().right - e.clientX - 6;
+  let best = 1;
+  for (let c = 2; c <= 3; c++) if (Math.abs(trayWidth(c) - want) < Math.abs(trayWidth(best) - want)) best = c;
+  setTrayCols(best);
+});
+E.splitter.addEventListener('pointerup', () => E.splitter.classList.remove('active'));
+E.splitter.addEventListener('pointercancel', () => E.splitter.classList.remove('active'));
+E.splitter.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') setTrayCols(trayCols + 1);
+  else if (e.key === 'ArrowRight') setTrayCols(trayCols - 1);
+  else return;
+  e.preventDefault();
+});
+document.querySelectorAll('button[data-size]').forEach((btn) => {
+  btn.onclick = () => {
+    pieceScale = +btn.dataset.size;
+    store.set('pt.pieceScale', pieceScale);
+    applyTraySize();
+  };
+});
+applyTraySize();
+
+function setTrayMenu(open) {
+  E.trayMenu.hidden = !open;
+  E.trayMenuBtn.setAttribute('aria-expanded', open);
+  if (!open) return;
+  const r = E.trayMenuBtn.getBoundingClientRect(), w = E.trayMenu.offsetWidth, h = E.trayMenu.offsetHeight;
+  E.trayMenu.style.left = Math.max(12, Math.min(innerWidth - w - 12, r.right - w)) + 'px';
+  E.trayMenu.style.top = (r.bottom + 6 + h <= innerHeight - 12 ? r.bottom + 6 : Math.max(12, r.top - 6 - h)) + 'px';
+}
+E.trayMenuBtn.onclick = () => setTrayMenu(E.trayMenu.hidden);
+$('menuShuffle').onclick = () => { shuffleTray(); setTrayMenu(false); };
+
+/* ---------------- touch menu ---------------- */
+// On touch screens and phones the toolbar becomes a menu that closes after a choice, a tap elsewhere, or a few idle seconds.
+let menuTimer = 0;
+const menuOpen = () => E.app.classList.contains('menu-open');
+function setMenu(open) {
+  clearTimeout(menuTimer);
+  E.app.classList.toggle('menu-open', open);
+  E.menuBtn.setAttribute('aria-expanded', open);
+  if (!open) { E.bar.style.left = E.bar.style.top = E.bar.style.maxHeight = ''; return; }
+  const r = E.menuBtn.getBoundingClientRect();
+  E.bar.style.left = r.left + 'px';
+  E.bar.style.top = r.bottom + 6 + 'px';
+  E.bar.style.maxHeight = innerHeight - r.bottom - 18 + 'px';
+  armMenuTimer();
+}
+function armMenuTimer() {
+  clearTimeout(menuTimer);
+  menuTimer = setTimeout(() => (document.activeElement === E.countSelect ? armMenuTimer() : setMenu(false)), 8000);
+}
+E.menuBtn.onclick = () => setMenu(!menuOpen());
+E.bar.addEventListener('pointerdown', () => { if (menuOpen()) armMenuTimer(); });
+E.bar.addEventListener('click', (e) => {
+  if (menuOpen() && e.target.closest('button, label')) setTimeout(() => setMenu(false), 0);
+});
+E.countSelect.addEventListener('change', () => { if (menuOpen()) setMenu(false); });
+matchMedia('(pointer: coarse), (max-width: 760px)').addEventListener('change', () => setMenu(false));
+document.addEventListener('pointerdown', (e) => {
+  if (menuOpen() && !e.target.closest('#bar, #menuBtn')) setMenu(false);
+  if (!E.trayMenu.hidden && !e.target.closest('#trayMenu, #trayMenuBtn')) setTrayMenu(false);
+}, true);
+window.addEventListener('resize', () => { setMenu(false); setTrayMenu(false); });
 
 /* ---------------- status, timer, finish ---------------- */
 function updateStatus() {
@@ -1174,8 +1388,11 @@ function updateStatus() {
   E.meter.style.width = (placed / S.N * 100).toFixed(2) + '%';
   let te = 0, tm = 0;
   for (const p of S.pieces) if (p.where === 'tray') p.edge ? te++ : tm++;
-  E.cntAll.textContent = te + tm; E.cntTab.textContent = te + tm; E.cntEdge.textContent = te; E.cntMid.textContent = tm;
-  const vis = filter === 'all' ? te + tm : filter === 'edge' ? te : tm;
+  const cnt = { all: te + tm, edge: te, middle: tm };
+  document.querySelectorAll('[data-cnt]').forEach((el) => { el.textContent = cnt[el.dataset.cnt]; });
+  E.menuProg.textContent = placed + '/' + S.N;
+  const vis = cnt[filter];
+  E.trayCount.textContent = E.galleryPane.hidden ? vis : 'Gallery';
   E.trayEmpty.hidden = vis > 0 || S.building;
   E.trayEmpty.textContent = filter === 'all' ? 'The tray is empty. Every piece is on the board.'
     : filter === 'edge' ? 'No edge pieces left in the tray.' : 'No middle pieces left in the tray.';
@@ -1372,7 +1589,7 @@ window.addEventListener('keydown', (e) => {
   if (k === 'h') hint();
   else if (k === 'p') togglePicture();
   else if (k === 'g') setGuide(E.ghost.hidden);
-  else if (k === 'escape') { togglePicture(false); E.finish.hidden = true; clearHint(); }
+  else if (k === 'escape') { togglePicture(false); E.finish.hidden = true; clearHint(); setMenu(false); setTrayMenu(false); }
   else if (k === '+' || k === '=') setZoom(zoom * 1.3);
   else if (k === '-') setZoom(zoom / 1.3);
   else if (k === '0') S && fitZoom();
@@ -1522,8 +1739,11 @@ function setSide(name) {
   E.galleryPane.hidden = !gal;
   $('tabPieces').setAttribute('aria-selected', !gal);
   $('tabGallery').setAttribute('aria-selected', gal);
+  document.querySelectorAll('button[data-side]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.side === name));
   store.set('pt.side', name);
+  if (S) updateStatus();
 }
+document.querySelectorAll('button[data-side]').forEach((btn) => { btn.onclick = () => setSide(btn.dataset.side); });
 $('tabPieces').onclick = () => setSide('pieces');
 $('tabGallery').onclick = () => setSide('gallery');
 if (store.get('pt.side') === 'gallery') setSide('gallery');
