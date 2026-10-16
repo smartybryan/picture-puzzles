@@ -612,7 +612,7 @@ let source = null;     // { img, w, h, name, url }
 let count = +(store.get('pt.count') || 72);
 if (!COUNTS.includes(count)) count = 72;
 let filter = 'all';
-let zoom = 1, minZoom = 0.05;
+let zoom = 1, minZoom = 0.05, fitted = false;
 let zTop = 10;
 let buildToken = 0;
 let drag = null;
@@ -843,15 +843,21 @@ function applyZoom() {
 function computeMinZoom() {
   return Math.min(E.board.clientWidth / S.worldW, E.board.clientHeight / S.worldH);
 }
+// Zooms so the picture frame fills the board, centered, with a little table showing around it.
 function fitZoom() {
   minZoom = computeMinZoom();
-  zoom = minZoom;
+  const pad = CELL / 2;
+  const z = Math.min(E.board.clientWidth / (S.W + 2 * pad), E.board.clientHeight / (S.H + 2 * pad));
+  zoom = Math.max(minZoom, Math.min(3, z));
   applyZoom();
-  E.board.scrollLeft = 0; E.board.scrollTop = 0;
+  E.board.scrollLeft = (S.mg + S.W / 2) * zoom - E.board.clientWidth / 2;
+  E.board.scrollTop = (S.mg + S.H / 2) * zoom - E.board.clientHeight / 2;
+  fitted = true;
 }
 function setZoom(z, cx, cy) {
   if (!S) return;
   z = Math.max(minZoom, Math.min(3, z));
+  fitted = false;
   const b = E.board.getBoundingClientRect();
   if (cx == null) { cx = b.left + b.width / 2; cy = b.top + b.height / 2; }
   const wr = E.world.getBoundingClientRect();
@@ -880,9 +886,9 @@ function centerOn(wx, wy) {
 }
 new ResizeObserver(() => {
   if (!S) return;
-  const atFit = Math.abs(zoom - minZoom) < 1e-3;
+  if (fitted) { fitZoom(); return; }
   minZoom = computeMinZoom();
-  if (atFit || zoom < minZoom) { zoom = minZoom; applyZoom(); }
+  if (zoom < minZoom) { zoom = minZoom; applyZoom(); }
 }).observe(E.board);
 
 /* ---------------- groups ---------------- */
