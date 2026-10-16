@@ -14,7 +14,7 @@ are built into the `puzzle-table` binary.
 Copy the zip to the server, then on the server:
 
 ```sh
-unzip puzzle-table-*.zip && cd puzzle-table-*/
+unzip -o puzzle-table.zip
 
 # a system user that owns the data
 sudo useradd --system --home /var/lib/puzzle-table --shell /usr/sbin/nologin puzzle
@@ -94,7 +94,7 @@ server {
 ## Upgrading
 
 ```sh
-unzip puzzle-table-*.zip && cd puzzle-table-*/
+unzip -o puzzle-table.zip
 sudo install -m 755 puzzle-table /opt/puzzle-table/puzzle-table
 sudo systemctl restart puzzle-table
 ```
