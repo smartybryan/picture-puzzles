@@ -101,6 +101,23 @@ sudo systemctl restart puzzle-table
 
 Photos, progress and sign-ins are kept; they live in `/var/lib/puzzle-table`.
 
+## Without systemd: deploy.sh
+
+`deploy.sh` runs the server straight from the folder you unzipped into, with
+no service setup. It stops the running `puzzle-table` (politely, then forcibly
+after 10 seconds), starts the new one in the background and disowns it, so it
+keeps running after you log out.
+
+```sh
+unzip -o puzzle-table.zip
+cp puzzle-table.env.example puzzle-table.env   # first time only; set PUZZLE_PASSCODE
+./deploy.sh
+```
+
+Settings are read from `puzzle-table.env` in that folder. Output is appended to
+`puzzle-table.log`, and the process id is kept in `puzzle-table.pid`. Use either
+this or the systemd service, not both: they would fight over the port.
+
 ## Backups and logs
 
 - Back up `/var/lib/puzzle-table`. It holds every photo, everyone's
