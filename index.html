@@ -239,10 +239,9 @@ body {
 .tray-list {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 6px;
   display: flex; flex-wrap: wrap; align-content: flex-start; justify-content: center;
-  background: var(--surface-2); touch-action: pan-y;
+  background: var(--surface-2); touch-action: none;
 }
 .tray-list .piece {
-  touch-action: auto;
   width: var(--tp); height: var(--tp); margin: -4px;
   filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.35));
 }
@@ -333,6 +332,15 @@ body {
   -webkit-user-select: text; user-select: text;
 }
 .field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pass-wrap { position: relative; display: grid; }
+.pass-wrap input { width: 100%; padding-right: 48px; }
+.pass-eye {
+  position: absolute; right: 3px; top: 3px; bottom: 3px; width: 40px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center;
+}
+.pass-eye:hover { color: var(--ink); }
+.pass-eye:focus-visible { outline: 2px solid var(--accent); }
+.pass-eye svg { width: 20px; height: 20px; }
 .form-error { color: var(--danger); font-weight: 500; }
 .btn:disabled { opacity: .6; cursor: progress; }
 .gallery-status { padding: 8px 12px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
@@ -362,11 +370,14 @@ body {
   .btn .lbl-long, .btn kbd { display: none; }
   .btn, .select { height: 34px; padding: 0 10px; }
   .progress { min-width: 96px; }
-  .main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) calc(2 * var(--tp) + 32px); gap: 8px; }
-  .splitter, .tray-head { display: none; }
+  .main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 12px var(--tray-h, 208px); }
+  .splitter { cursor: row-resize; }
+  .splitter::before { inset: -8px 0; }
+  .splitter i { width: 44px; height: 4px; }
+  .tray-head { display: none; }
   .tray-list {
-    display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, calc(var(--tp) - 8px));
-    grid-auto-columns: calc(var(--tp) - 8px); overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
+    display: grid; grid-auto-flow: column; grid-template-rows: repeat(var(--tray-rows, 2), calc(var(--tp) - 8px));
+    grid-auto-columns: calc(var(--tp) - 8px); overflow-x: auto; overflow-y: hidden;
     justify-content: start; align-content: center;
   }
   .tray-list .piece { margin: -4px; }
@@ -575,7 +586,10 @@ body {
       <input id="loginName" name="name" autocomplete="nickname" maxlength="40" required>
     </label>
     <label class="field" for="loginPass">Family passcode
-      <input id="loginPass" name="passcode" type="password" autocomplete="current-password" required>
+      <span class="pass-wrap">
+        <input id="loginPass" name="passcode" type="password" autocomplete="current-password" required>
+        <button type="button" class="pass-eye" id="passEye" aria-label="Show passcode" aria-pressed="false"></button>
+      </span>
     </label>
     <p class="form-error" id="loginError" role="alert" hidden></p>
     <div class="row">
@@ -949,11 +963,10 @@ function applyZoom() {
 function computeMinZoom() {
   return Math.min(E.board.clientWidth / S.worldW, E.board.clientHeight / S.worldH);
 }
-// Zooms so the picture frame fills the board, centered, with a little table showing around it.
+// Zooms so the picture frame fills the board edge to edge in one direction, centered in the other.
 function fitZoom() {
   minZoom = computeMinZoom();
-  const pad = CELL / 2;
-  const z = Math.min(E.board.clientWidth / (S.W + 2 * pad), E.board.clientHeight / (S.H + 2 * pad));
+  const z = Math.min(E.board.clientWidth / S.W, E.board.clientHeight / S.H);
   zoom = Math.max(minZoom, Math.min(3, z));
   applyZoom();
   E.board.scrollLeft = (S.mg + S.W / 2) * zoom - E.board.clientWidth / 2;
@@ -1119,6 +1132,7 @@ function boardPieceAt(x, y) {
 }
 
 E.board.addEventListener('pointerdown', (e) => {
+  if (S && drag && e.pointerType === 'touch' && (drag.type === 'pan' || drag.type === 'group')) { startPinch(e); return; }
   if (!S || S.building || e.button > 0 || drag) return;
   const p = boardPieceAt(e.clientX, e.clientY);
   e.preventDefault();
@@ -1128,7 +1142,9 @@ E.board.addEventListener('pointerdown', (e) => {
     for (const id of g.members) S.pieces[id].el.classList.remove('glide');
     if (g.members.size <= 200) for (const id of g.members) S.pieces[id].el.classList.add('lifted');
     const start = worldPt(e.clientX, e.clientY);
-    drag = { type: 'group', g, start, ox: g.ox, oy: g.oy, box: groupBox(g), id: e.pointerId, floating: false };
+    drag = {
+      type: 'group', g, start, ox: g.ox, oy: g.oy, box: groupBox(g), id: e.pointerId, floating: false, lx: e.clientX, ly: e.clientY,
+    };
     if (g.members.size === 1) {
       // remember where the piece was grabbed so it can float over the tray under the pointer
       drag.p = p;
@@ -1136,18 +1152,68 @@ E.board.addEventListener('pointerdown', (e) => {
       drag.fy = (start.y - (p.r * CELL + g.oy - PAD)) / PS;
     }
   } else {
-    drag = { type: 'pan', x: e.clientX, y: e.clientY, sl: E.board.scrollLeft, st: E.board.scrollTop, id: e.pointerId };
+    drag = {
+      type: 'pan', x: e.clientX, y: e.clientY, sl: E.board.scrollLeft, st: E.board.scrollTop, id: e.pointerId, lx: e.clientX, ly: e.clientY,
+    };
     E.board.classList.add('panning');
   }
 });
 
+// Two fingers on the board zoom around their midpoint and pan as they move.
+function startPinch(e) {
+  e.preventDefault();
+  const d = drag;
+  if (d.type === 'group') {
+    if (d.floating) setFloating(false);
+    d.g.ox = d.ox; d.g.oy = d.oy;
+    positionGroup(d.g);
+    for (const id of d.g.members) S.pieces[id].el.classList.remove('lifted');
+    E.tray.classList.remove('drop-target');
+  }
+  E.board.classList.remove('panning');
+  const pts = new Map([[d.id, { x: d.lx, y: d.ly }], [e.pointerId, { x: e.clientX, y: e.clientY }]]);
+  const m = pinchMetrics(pts);
+  drag = { type: 'pinch', pts, d0: Math.max(m.d, 1), z0: zoom, mx: m.mx, my: m.my };
+}
+function pinchMetrics(pts) {
+  const [a, b] = [...pts.values()];
+  return { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+}
+
+// Touch scrolling in the tray is done here rather than by the browser, so the browser never claims
+// a drag toward the board as a scroll and cancels it. Drags along the tray scroll it; others move the piece.
+const phoneMQ = matchMedia('(max-width: 760px)');
+let trayGlide = 0;
+function startTrayScroll(x, y, e) {
+  drag = {
+    type: 'tray-scroll', id: e.pointerId, x, y, sl: E.trayList.scrollLeft, st: E.trayList.scrollTop,
+    v: 0, lx: e.clientX, ly: e.clientY, t: performance.now(),
+  };
+}
+function glideTray(v) {
+  const across = phoneMQ.matches;
+  let last = performance.now();
+  const step = (now) => {
+    const dt = now - last;
+    last = now;
+    if (across) E.trayList.scrollLeft += v * dt; else E.trayList.scrollTop += v * dt;
+    v *= Math.pow(0.996, dt);
+    trayGlide = Math.abs(v) > 0.02 ? requestAnimationFrame(step) : 0;
+  };
+  trayGlide = requestAnimationFrame(step);
+}
+
 E.trayList.addEventListener('pointerdown', (e) => {
   if (!S || S.building || e.button > 0 || drag) return;
+  const touch = e.pointerType !== 'mouse', gliding = !!trayGlide;
+  cancelAnimationFrame(trayGlide);
+  trayGlide = 0;
   const el = e.target.closest('.piece');
+  if (touch && (!el || gliding)) { startTrayScroll(e.clientX, e.clientY, e); return; }
   if (!el) return;
   const r = el.getBoundingClientRect();
   drag = {
-    type: 'tray-pending', p: S.pieces[+el.dataset.id], id: e.pointerId,
+    type: 'tray-pending', p: S.pieces[+el.dataset.id], id: e.pointerId, touch,
     fx: (e.clientX - r.left) / r.width, fy: (e.clientY - r.top) / r.height, x0: e.clientX, y0: e.clientY,
   };
 });
@@ -1171,7 +1237,18 @@ function moveTrayGhost(x, y) {
 }
 
 window.addEventListener('pointermove', (e) => {
+  if (drag && drag.type === 'pinch') {
+    if (!drag.pts.has(e.pointerId)) return;
+    drag.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const m = pinchMetrics(drag.pts);
+    E.board.scrollLeft += drag.mx - m.mx;
+    E.board.scrollTop += drag.my - m.my;
+    drag.mx = m.mx; drag.my = m.my;
+    setZoom(drag.z0 * m.d / drag.d0, m.mx, m.my);
+    return;
+  }
   if (!drag || e.pointerId !== drag.id) return;
+  drag.lx = e.clientX; drag.ly = e.clientY;
   if (drag.type === 'pan') {
     E.board.scrollLeft = drag.sl - (e.clientX - drag.x);
     E.board.scrollTop = drag.st - (e.clientY - drag.y);
@@ -1185,8 +1262,20 @@ window.addEventListener('pointermove', (e) => {
     clampGroup(g, drag.box);
     if (drag.floating) moveTrayGhost(e.clientX, e.clientY);
     else positionGroup(g);
+  } else if (drag.type === 'tray-scroll') {
+    const now = performance.now(), dt = Math.max(1, now - drag.t), across = phoneMQ.matches;
+    const step = across ? e.clientX - drag.px : e.clientY - drag.py;
+    if (drag.px != null) drag.v = 0.8 * (-step / dt) + 0.2 * drag.v;
+    drag.px = e.clientX; drag.py = e.clientY; drag.t = now;
+    if (across) E.trayList.scrollLeft = drag.sl - (e.clientX - drag.x);
+    else E.trayList.scrollTop = drag.st - (e.clientY - drag.y);
   } else if (drag.type === 'tray-pending') {
-    if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
+    const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    if (Math.hypot(dx, dy) < 6) return;
+    if (drag.touch && (phoneMQ.matches ? Math.abs(dx) > Math.abs(dy) : Math.abs(dy) > Math.abs(dx))) {
+      startTrayScroll(drag.x0, drag.y0, e);
+      return;
+    }
     drag.type = 'tray';
     const el = drag.p.el, size = PS * zoom;
     el.style.width = el.style.height = size + 'px';
@@ -1198,10 +1287,12 @@ window.addEventListener('pointermove', (e) => {
 });
 
 function endDrag(e, cancelled) {
+  if (drag && drag.type === 'pinch') { if (drag.pts.has(e.pointerId)) drag = null; return; }
   if (!drag || e.pointerId !== drag.id) return;
   const d = drag; drag = null;
   if (!S) return;
   if (d.type === 'pan') { E.board.classList.remove('panning'); return; }
+  if (d.type === 'tray-scroll') { if (!cancelled && performance.now() - d.t < 80) glideTray(d.v); return; }
   if (d.type === 'group') {
     E.tray.classList.remove('drop-target');
     for (const id of d.g.members) S.pieces[id].el.classList.remove('lifted');
@@ -1217,9 +1308,10 @@ function endDrag(e, cancelled) {
     if (!cancelled) dropInView(d.p);
     return;
   }
-  // tray drag
-  if (!cancelled && inRect(E.board, e.clientX, e.clientY)) {
-    const w = worldPt(e.clientX, e.clientY);
+  // tray drag; a cancelled touch still drops where the finger last was
+  const x = cancelled ? d.lx : e.clientX, y = cancelled ? d.ly : e.clientY;
+  if (inRect(E.board, x, y)) {
+    const w = worldPt(x, y);
     placeOnBoard(d.p, w.x - d.fx * PS, w.y - d.fy * PS);
   } else {
     returnToTray(d.p);
@@ -1279,6 +1371,7 @@ $('shuffleBtn').onclick = shuffleTray;
 // The tray is 1 to 3 columns of pieces wide (drag the splitter); piece size scales the pieces in the tray.
 const SIZES = [1, 1.25, 1.5];
 let trayCols = Math.max(1, Math.min(3, Math.round(+store.get('pt.trayCols') || 3)));
+let trayRows = Math.max(1, Math.min(3, Math.round(+store.get('pt.trayRows') || 2)));
 let pieceScale = SIZES.includes(+store.get('pt.pieceScale')) ? +store.get('pt.pieceScale') : 1;
 const scrollbarW = (() => {
   const d = document.createElement('div');
@@ -1294,11 +1387,21 @@ function trayWidth(cols) {
   const w = cols * (trayPieceSize() - 8) + 16 + scrollbarW;
   return cols === 3 ? Math.max(300, w) : w;
 }
+// On phones the tray sits under the board and is 1 to 3 rows tall instead.
+function trayHeight(rows) {
+  const top = E.tray.querySelector('.tray-top').offsetHeight || 35;
+  return rows * (trayPieceSize() - 8) + top + 16 + scrollbarW;
+}
 function applyTraySize() {
+  const across = phoneMQ.matches;
   document.documentElement.style.setProperty('--tp', trayPieceSize() + 'px');
   E.main.style.setProperty('--tray-w', trayWidth(trayCols) + 'px');
+  E.main.style.setProperty('--tray-h', trayHeight(trayRows) + 'px');
+  E.main.style.setProperty('--tray-rows', trayRows);
   E.tray.classList.toggle('narrow', trayCols < 3);
-  E.splitter.setAttribute('aria-valuenow', trayCols);
+  E.splitter.setAttribute('aria-orientation', across ? 'horizontal' : 'vertical');
+  E.splitter.setAttribute('aria-label', across ? 'Tray height in rows' : 'Tray width in columns');
+  E.splitter.setAttribute('aria-valuenow', across ? trayRows : trayCols);
   document.querySelectorAll('button[data-size]').forEach((b) => b.setAttribute('aria-pressed', +b.dataset.size === pieceScale));
 }
 function setTrayCols(c) {
@@ -1308,6 +1411,15 @@ function setTrayCols(c) {
   store.set('pt.trayCols', c);
   applyTraySize();
 }
+function setTrayRows(r) {
+  r = Math.max(1, Math.min(3, r));
+  if (r === trayRows) return;
+  trayRows = r;
+  store.set('pt.trayRows', r);
+  applyTraySize();
+}
+// Grows (+1) or shrinks (-1) the tray along whichever direction it resizes in.
+function stepTray(n) { if (phoneMQ.matches) setTrayRows(trayRows + n); else setTrayCols(trayCols + n); }
 E.splitter.addEventListener('pointerdown', (e) => {
   if (e.button > 0) return;
   e.preventDefault();
@@ -1316,16 +1428,17 @@ E.splitter.addEventListener('pointerdown', (e) => {
 });
 E.splitter.addEventListener('pointermove', (e) => {
   if (!E.splitter.hasPointerCapture(e.pointerId)) return;
-  const want = E.main.getBoundingClientRect().right - e.clientX - 6;
+  const m = E.main.getBoundingClientRect(), across = phoneMQ.matches;
+  const want = across ? m.bottom - e.clientY - 6 : m.right - e.clientX - 6, size = across ? trayHeight : trayWidth;
   let best = 1;
-  for (let c = 2; c <= 3; c++) if (Math.abs(trayWidth(c) - want) < Math.abs(trayWidth(best) - want)) best = c;
-  setTrayCols(best);
+  for (let n = 2; n <= 3; n++) if (Math.abs(size(n) - want) < Math.abs(size(best) - want)) best = n;
+  if (across) setTrayRows(best); else setTrayCols(best);
 });
 E.splitter.addEventListener('pointerup', () => E.splitter.classList.remove('active'));
 E.splitter.addEventListener('pointercancel', () => E.splitter.classList.remove('active'));
 E.splitter.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft') setTrayCols(trayCols + 1);
-  else if (e.key === 'ArrowRight') setTrayCols(trayCols - 1);
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') stepTray(1);
+  else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') stepTray(-1);
   else return;
   e.preventDefault();
 });
@@ -1337,6 +1450,7 @@ document.querySelectorAll('button[data-size]').forEach((btn) => {
   };
 });
 applyTraySize();
+phoneMQ.addEventListener('change', applyTraySize);
 
 function setTrayMenu(open) {
   E.trayMenu.hidden = !open;
@@ -1922,6 +2036,7 @@ E.loginForm.addEventListener('submit', async (e) => {
     });
     store.set('pt.name', E.loginName.value.trim());
     E.loginPass.value = '';
+    showPass(false);
     E.login.hidden = true;
     G.loginNeeded = false;
     startGallery(serverBackend(me));
@@ -1936,6 +2051,18 @@ E.loginForm.addEventListener('submit', async (e) => {
   }
 });
 $('loginSkip').onclick = () => { E.login.hidden = true; };
+const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 5.1A10.5 10.5 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-2.6 3.5M6.6 6.6C3.7 8.4 2 12 2 12s3.6 7 10 7c1.9 0 3.6-.6 5-1.5M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18"/></svg>';
+function showPass(on) {
+  E.loginPass.type = on ? 'text' : 'password';
+  $('passEye').innerHTML = on ? EYE_OFF : EYE;
+  $('passEye').setAttribute('aria-pressed', on);
+  $('passEye').setAttribute('aria-label', on ? 'Hide passcode' : 'Show passcode');
+}
+showPass(false);
+// Keep focus (and the on-screen keyboard) on the field while toggling.
+$('passEye').addEventListener('pointerdown', (e) => e.preventDefault());
+$('passEye').onclick = () => showPass(E.loginPass.type === 'password');
 $('signOut').onclick = () => G.backend && G.backend.logout && G.backend.logout();
 
 async function initGallery() {
